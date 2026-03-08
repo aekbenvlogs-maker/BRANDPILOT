@@ -1,0 +1,48 @@
+# ============================================================
+# PROJECT      : BRANDSCALE — AI Brand Scaling Tool
+# FILE         : Dockerfile.backend
+# DESCRIPTION  : Multi-stage Python backend image (non-root user)
+# ============================================================
+FROM python:3.11-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# ── dependencies ──────────────────────────────────────────
+FROM base AS deps
+
+COPY pyproject.toml ./
+RUN pip install --upgrade pip \
+    && pip install ".[prod]" 2>/dev/null || pip install -e "." \
+    || pip install \
+        fastapi uvicorn[standard] sqlalchemy[asyncio] alembic \
+        pydantic-settings loguru python-jose passlib bcrypt \
+        celery[redis] redis httpx boto3 cryptography openai \
+        asyncpg aiosqlite
+
+# ── final image ───────────────────────────────────────────
+FROM base AS final
+
+# Create non-root user
+RUN addgroup --system brandscale && adduser --system --ingroup brandscale brandscale
+
+COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=deps /usr/local/bin /usr/local/bin
+
+WORKDIR /app
+COPY . .
+
+RUN chown -R brandscale:brandscale /app
+
+USER brandscale
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD python -c "import httpx; httpx.get('http://localhost:8000/api/v1/health', timeout=5)"
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

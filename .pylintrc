@@ -1,0 +1,142 @@
+# ============================================================
+# PROJECT      : BRANDSCALE — AI Brand Scaling Tool
+# FILE         : .pylintrc
+# DESCRIPTION  : Pylint static analysis configuration (threshold ≥ 8.5)
+# AUTHOR       : BRANDSCALE Dev Team
+# WORKFLOW     : VSCode + Claude + Copilot Pro + File Engineering
+# PYTHON       : 3.11.9
+# LAST UPDATED : 2026-03-08
+# ============================================================
+
+[MAIN]
+# Analyse Python 3.11
+py-version = 3.11
+
+# Use multiple processes to speed up Pylint
+jobs = 0
+
+# Minimum score to pass
+fail-under = 8.5
+
+# Allow loading of arbitrary C extensions
+unsafe-load-any-extension = no
+
+# Pickling
+persistent = yes
+
+# Add files or directories to the blacklist
+ignore = CVS, .venv, alembic, node_modules, __pycache__, migrations
+
+# A comma-separated list of package or module names from where C extensions
+# may be loaded.
+extension-pkg-allow-list =
+
+[MESSAGES CONTROL]
+# Disable the following messages/categories
+disable =
+    C0114,    # missing-module-docstring
+    R0903,    # too-few-public-methods
+    W0613,    # unused-argument (handled by Ruff)
+    C0116,    # missing-function-docstring (prefer docstrings but not enforced)
+    R0801,    # duplicate-code (acceptable in test modules)
+
+[REPORTS]
+# Set the output format
+output-format = colorized
+
+# Activate the evaluation score
+score = yes
+
+[REFACTORING]
+# Maximum number of nested blocks for a function / method body
+max-nested-blocks = 5
+
+# Complete name of functions that never returns
+never-returning-functions = sys.exit, argparse.parse_error
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length = 88
+
+# Regexp for a line that is allowed to be longer than the limit
+ignore-long-lines = ^\s*(# )?<?https?://\S+>?$
+
+# Maximum number of lines in a module
+max-module-lines = 1000
+
+# String used as indentation unit
+indent-string = '    '
+
+# Number of spaces of indent required inside a hanging or continued line
+indent-after-paren = 4
+
+[VARIABLES]
+# Tells whether we should check for unused import in __init__ files
+init-import = no
+
+# A regular expression matching the name of dummy variables
+dummy-variables-rgx = _+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+$)|dummy|^ignored_|^unused_
+
+# List of additional names supposed to be defined in builtins
+additional-builtins =
+
+[DESIGN]
+# Maximum number of arguments for function / method
+max-args = 10
+
+# Maximum number of attributes for a class
+max-attributes = 15
+
+# Maximum number of boolean expressions in an if statement
+max-bool-expr = 5
+
+# Maximum number of branch for function / method body
+max-branches = 12
+
+# Maximum number of locals for function / method body
+max-locals = 20
+
+# Maximum number of parents for a class
+max-parents = 7
+
+# Maximum number of public methods for a class
+max-public-methods = 25
+
+# Maximum number of return / yield for function / method body
+max-returns = 6
+
+# Maximum number of statements in function / method body
+max-statements = 50
+
+# Minimum number of public methods for a class
+min-public-methods = 1
+
+[IMPORTS]
+# Allow wildcard imports from modules that define __all__
+allow-wildcard-with-all = no
+
+# Analyse import fallback blocks
+analyse-fallback-blocks = no
+
+# Deprecated modules
+deprecated-modules = optparse, tkinter.tix
+
+[EXCEPTIONS]
+# Exceptions that will emit a warning when caught
+overgeneral-exceptions = builtins.BaseException, builtins.Exception
+
+[TYPECHECK]
+# List of module names for which member attributes should not be checked
+ignored-modules =
+    sqlalchemy,
+    alembic,
+    celery,
+
+# List of classes names for which member attributes should not be checked
+ignored-classes =
+    SQLObject,
+    optparse.Values,
+    thread._local,
+    _thread._local,
+    Session,
+    AsyncSession,

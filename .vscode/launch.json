@@ -1,0 +1,98 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FastAPI — Backend",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "backend.main:app",
+        "--host", "0.0.0.0",
+        "--port", "8000",
+        "--reload"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Next.js — Frontend",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/frontend/node_modules/.bin/next",
+      "args": ["dev"],
+      "cwd": "${workspaceFolder}/frontend",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Pytest — All tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "tests/",
+        "--cov=backend",
+        "--cov=microservices",
+        "--cov-report=html:BRANDSCALE_coverage_report.html",
+        "-v"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "APP_ENV": "test"
+      },
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    },
+    {
+      "name": "Pytest — Current file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-v"],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "APP_ENV": "test"
+      },
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    },
+    {
+      "name": "Ruff — Check",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ruff",
+      "args": ["check", "."],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Mypy — Type check",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mypy",
+      "args": ["backend/", "microservices/", "configs/", "database/"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Celery — Text Worker",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "celery",
+      "args": [
+        "-A", "microservices.bs_ai_text.worker.celery_app",
+        "worker",
+        "--loglevel=info"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    }
+  ]
+}

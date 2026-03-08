@@ -1,0 +1,51 @@
+# ============================================================
+# PROJECT      : BRANDSCALE — AI Brand Scaling Tool
+# FILE         : Dockerfile.frontend
+# DESCRIPTION  : Multi-stage Next.js 14 image (non-root, Node 20 slim)
+# ============================================================
+
+# ── deps stage ────────────────────────────────────────────
+FROM node:20-slim AS deps
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci --omit=dev
+
+# ── builder stage ─────────────────────────────────────────
+FROM node:20-slim AS builder
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+
+COPY frontend/ .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# ── runner stage ──────────────────────────────────────────
+FROM node:20-slim AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 --ingroup nodejs nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000 \
+    HOSTNAME="0.0.0.0"
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD node -e "const http = require('http'); http.get('http://localhost:3000/', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"
+
+CMD ["node", "server.js"]

@@ -1,0 +1,57 @@
+# ============================================================
+# PROJECT      : BRANDSCALE — AI Brand Scaling Tool
+# FILE         : backend/api/v1/models/project.py
+# DESCRIPTION  : Pydantic v2 request/response models for Project entity
+# AUTHOR       : BRANDSCALE Dev Team
+# WORKFLOW     : VSCode + Claude + Copilot Pro + File Engineering
+# PYTHON       : 3.11.9
+# LAST UPDATED : 2026-03-08
+# ============================================================
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class ProjectBase(BaseModel):
+    """Shared fields for Project create/update."""
+
+    name: str = Field(min_length=1, max_length=256, description="Project name")
+    description: Optional[str] = Field(default=None, description="Project description")
+
+
+class ProjectCreate(ProjectBase):
+    """Request body for creating a new project."""
+
+
+class ProjectUpdate(BaseModel):
+    """Request body for updating a project (all optional)."""
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=256)
+    description: Optional[str] = None
+    archived: Optional[bool] = None
+
+
+class ProjectResponse(ProjectBase):
+    """API response model for a project."""
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    archived: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProjectListResponse(BaseModel):
+    """Paginated list of projects."""
+
+    items: list[ProjectResponse]
+    total: int
+    page: int
+    page_size: int

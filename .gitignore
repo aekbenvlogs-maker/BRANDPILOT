@@ -1,0 +1,153 @@
+# ============================================================
+# PROJECT      : BRANDSCALE — AI Brand Scaling Tool
+# FILE         : .gitignore
+# DESCRIPTION  : Git ignore rules — secrets, builds, caches excluded
+# AUTHOR       : BRANDSCALE Dev Team
+# WORKFLOW     : VSCode + Claude + Copilot Pro + File Engineering
+# LAST UPDATED : 2026-03-08
+# ============================================================
+
+# ---------------------------------------------------------------------------
+# SECRETS — Never commit these
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+credentials.json
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.pyc
+
+# Virtualenvs
+.venv/
+venv/
+ENV/
+env/
+.env/
+
+# Mypy
+.mypy_cache/
+*.pyi
+
+# Ruff
+.ruff_cache/
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+BRANDSCALE_coverage_report.html
+coverage.xml
+*.cover
+
+# Pylint
+pylint-report.txt
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SQLite dev database
+*.db
+*.sqlite
+*.sqlite3
+brandscale_dev.db
+
+# ---------------------------------------------------------------------------
+# Node / Frontend
+# ---------------------------------------------------------------------------
+node_modules/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next/
+out/
+.vercel
+
+# Build
+frontend/build/
+frontend/dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# Jest
+coverage/
+
+# ---------------------------------------------------------------------------
+# Docker
+# ---------------------------------------------------------------------------
+.docker/
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+*.log
+logs/
+log/
+
+# ---------------------------------------------------------------------------
+# OS
+# ---------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# IDE / Editors
+# ---------------------------------------------------------------------------
+.idea/
+*.swp
+*.swo
+*~
+.vscode/*.log
+
+# ---------------------------------------------------------------------------
+# Alembic
+# ---------------------------------------------------------------------------
+database/migrations/versions/*.pyc
+
+# ---------------------------------------------------------------------------
+# Misc
+# ---------------------------------------------------------------------------
+*.bak
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
