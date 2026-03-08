@@ -14,7 +14,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from celery import chain, group
+from celery import Celery, chain, group
 from loguru import logger
 from sqlalchemy import update
 
@@ -27,6 +27,12 @@ from microservices.bs_email.worker import task_create_sequence, task_send_email
 from microservices.bs_scoring.worker import task_rank_leads, task_score_lead
 
 settings = get_settings()
+
+_celery = Celery(
+    "workflow",
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend,
+)
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -186,3 +192,75 @@ def _build_recommendations(open_rate: float, click_rate: float, conversion_rate:
     if not recs:
         recs.append("Campaign performing well — continue current strategy.")
     return recs
+
+
+# ─── Celery Entry Point ───────────────────────────────────────────────────────
+
+
+@_celery.task(bind=True, name="workflow.run_l2c_pipeline", max_retries=3, default_retry_delay=30)
+def run_l2c_pipeline(self: Any, campaign_id: str) -> dict[str, Any]:
+    """
+    Celery entry-point: full Lead-to-Campaign pipeline.
+
+    Fetches the campaign and its opted-in leads from the database,
+    builds enriched lead dicts (sector, company_size, engagement counters)
+    for accurate scoring, then dispatches the lead scoring pipeline.
+
+    Args:
+        campaign_id: String UUID of the target campaign.
+
+    Returns:
+        Dict with lead_job_id, campaign_id, and leads_count.
+    """
+    import asyncio
+
+    async def _run() -> dict[str, Any]:
+        from sqlalchemy import select
+
+        from database.models_orm import Campaign, Lead
+
+        async with db_session() as session:
+            camp_result = await session.execute(
+                select(Campaign).where(Campaign.id == campaign_id)
+            )
+            campaign = camp_result.scalar_one_or_none()
+            if not campaign:
+                raise ValueError(f"Campaign {campaign_id} not found")
+
+            leads_result = await session.execute(
+                select(Lead)
+                .where(Lead.project_id == campaign.project_id)
+                .where(Lead.opt_in.is_(True))
+            )
+            leads = [
+                {
+                    "id": str(lead.id),
+                    "sector": lead.sector or "other",
+                    "company_size": lead.company_size or "other",
+                    "email_opens": lead.email_opens,
+                    "email_clicks": lead.email_clicks,
+                    "page_visits": lead.page_visits,
+                    "source": lead.source or "other",
+                    "opt_in": lead.opt_in,
+                }
+                for lead in leads_result.scalars().all()
+            ]
+
+        lead_job_id = await run_lead_pipeline(leads, campaign_id)
+        logger.info(
+            "[workflow] L2C pipeline | campaign={} leads={} job={}",
+            campaign_id, len(leads), lead_job_id,
+        )
+        return {
+            "lead_job_id": lead_job_id,
+            "campaign_id": campaign_id,
+            "leads_count": len(leads),
+        }
+
+    try:
+        return asyncio.run(_run())
+    except Exception as exc:
+        logger.error(
+            "[workflow] run_l2c_pipeline failed | campaign={} error={}", campaign_id, str(exc)
+        )
+        raise self.retry(exc=exc)

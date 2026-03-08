@@ -118,6 +118,11 @@ CREATE TABLE IF NOT EXISTS leads (
     last_name    TEXT,                           -- encrypted
     company      VARCHAR(256),
     sector       VARCHAR(128),
+    company_size VARCHAR(64),
+    -- Engagement counters
+    email_opens  INTEGER      NOT NULL DEFAULT 0,
+    email_clicks INTEGER      NOT NULL DEFAULT 0,
+    page_visits  INTEGER      NOT NULL DEFAULT 0,
     -- Scoring
     score        SMALLINT     NOT NULL DEFAULT 0 CHECK (score >= 0 AND score <= 100),
     score_tier   score_tier   NOT NULL DEFAULT 'cold',

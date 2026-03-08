@@ -13,13 +13,17 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import redis.asyncio as aioredis
 from loguru import logger
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from configs.ai_config import get_fallback_template, get_model_config, get_openai_client
 from configs.settings import get_settings
+from database.connection import db_session
+from database.models_orm import Analytics
 
 settings = get_settings()
 
@@ -58,6 +62,40 @@ async def _set_cached(key: str, value: str) -> None:
         logger.warning("[bs_ai_text] Redis set failed | key={} error={}", key, str(exc))
 
 
+async def _accumulate_ai_cost(campaign_id: uuid.UUID, cost_usd: float) -> None:
+    """Upsert AI generation cost into today's Analytics row for the campaign."""
+    if cost_usd <= 0:
+        return
+    today = datetime.now(timezone.utc).date()
+    try:
+        async with db_session() as session:
+            stmt = (
+                pg_insert(Analytics)
+                .values(
+                    id=uuid.uuid4(),
+                    campaign_id=campaign_id,
+                    date=today,
+                    ai_cost_usd=cost_usd,
+                )
+                .on_conflict_do_update(
+                    index_elements=["campaign_id", "date"],
+                    set_={
+                        "ai_cost_usd": Analytics.ai_cost_usd + cost_usd,
+                        "updated_at": datetime.now(timezone.utc),
+                    },
+                )
+            )
+            await session.execute(stmt)
+            await session.commit()
+        logger.info(
+            "[bs_ai_text] Cost persisted | campaign={} cost=${:.4f}", campaign_id, cost_usd
+        )
+    except Exception as exc:
+        logger.error(
+            "[bs_ai_text] Cost persist failed | campaign={} error={}", campaign_id, str(exc)
+        )
+
+
 # ---------------------------------------------------------------------------
 # Core AI generation function
 # ---------------------------------------------------------------------------
@@ -66,6 +104,7 @@ async def _generate_text(
     user_prompt: str,
     model_config_key: str,
     cache_key: str,
+    campaign_id: Optional[uuid.UUID] = None,
 ) -> dict[str, Any]:
     """
     Call the OpenAI-compatible API to generate text.
@@ -120,6 +159,8 @@ async def _generate_text(
             "[bs_ai_text] Generated | model={} tokens={} cost=${:.4f}",
             config.name, tokens_used, cost_usd,
         )
+        if campaign_id is not None:
+            await _accumulate_ai_cost(campaign_id, cost_usd)
         return {
             "text": text,
             "tokens_used": tokens_used,
@@ -162,6 +203,7 @@ async def generate_post(
     tone: str = "professional",
     platform: str = "linkedin",
     language: str = "fr",
+    campaign_id: Optional[uuid.UUID] = None,
 ) -> dict[str, Any]:
     """
     Generate a social media post for a lead.
@@ -185,7 +227,7 @@ async def generate_post(
         f"Lead context: id={lead_id}. Language: {language}."
     )
     key = _cache_key("post", lead_id=str(lead_id), tone=tone, platform=platform, lang=language)
-    return await _generate_text(system_prompt, user_prompt, "post", key)
+    return await _generate_text(system_prompt, user_prompt, "post", key, campaign_id)
 
 
 async def generate_email_content(
@@ -215,13 +257,14 @@ async def generate_email_content(
         f"campaign_id={campaign_id} lead_id={lead_id} language={language}."
     )
     key = _cache_key("email", lead_id=str(lead_id), campaign_id=str(campaign_id), lang=language)
-    return await _generate_text(system_prompt, user_prompt, "email", key)
+    return await _generate_text(system_prompt, user_prompt, "email", key, campaign_id)
 
 
 async def generate_ad_copy(
     lead_id: Optional[uuid.UUID],
     tone: str = "persuasive",
     language: str = "fr",
+    campaign_id: Optional[uuid.UUID] = None,
 ) -> dict[str, Any]:
     """
     Generate concise ad copy for a lead.
@@ -241,7 +284,7 @@ async def generate_ad_copy(
     )
     user_prompt = f"Write ad copy for lead_id={lead_id}, tone={tone}, language={language}."
     key = _cache_key("ad", lead_id=str(lead_id), tone=tone, lang=language)
-    return await _generate_text(system_prompt, user_prompt, "ad", key)
+    return await _generate_text(system_prompt, user_prompt, "ad", key, campaign_id)
 
 
 async def generate_newsletter(
@@ -266,7 +309,7 @@ async def generate_newsletter(
     )
     user_prompt = f"Write a newsletter for campaign_id={campaign_id}, language={language}."
     key = _cache_key("newsletter", campaign_id=str(campaign_id), lang=language)
-    return await _generate_text(system_prompt, user_prompt, "newsletter", key)
+    return await _generate_text(system_prompt, user_prompt, "newsletter", key, campaign_id)
 
 
 async def generate_video_script(
@@ -295,7 +338,7 @@ async def generate_video_script(
         f"lead_id={lead_id}, language={language}."
     )
     key = _cache_key("video_script", lead_id=str(lead_id), campaign_id=str(campaign_id))
-    return await _generate_text(system_prompt, user_prompt, "video_script", key)
+    return await _generate_text(system_prompt, user_prompt, "video_script", key, campaign_id)
 
 
 if __name__ == "__main__":
