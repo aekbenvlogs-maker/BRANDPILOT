@@ -211,6 +211,16 @@ async def import_leads_from_csv(
             total_processed=0,
         )
 
+    # Pre-fetch all existing encrypted emails for this project once — O(n) total
+    existing_enc_result = await db.execute(
+        select(Lead.email).where(Lead.project_id == project_id)
+    )
+    existing_emails_plain: set[str] = {
+        plain.lower()
+        for enc in (row[0] for row in existing_enc_result.all())
+        if (plain := decrypt_pii(enc)) is not None
+    }
+
     for idx, row in enumerate(rows, start=2):  # row 1 is header
         email = (row.get("email") or "").strip()
         if not email:
@@ -218,13 +228,7 @@ async def import_leads_from_csv(
             skipped += 1
             continue
 
-        # Check for duplicate email within same project
-        existing = await db.execute(
-            select(Lead).where(Lead.project_id == project_id)
-        )
-        existing_leads = existing.scalars().all()
-        emails_decrypted = [decrypt_pii(l.email) for l in existing_leads]
-        if email.lower() in [e.lower() for e in emails_decrypted if e]:
+        if email.lower() in existing_emails_plain:
             skipped += 1
             continue
 
@@ -242,6 +246,7 @@ async def import_leads_from_csv(
             opt_in=opt_in,
         )
         db.add(lead)
+        existing_emails_plain.add(email.lower())  # prevent intra-batch duplicates
         imported += 1
 
     await db.flush()

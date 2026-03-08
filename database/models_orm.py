@@ -252,6 +252,11 @@ class Lead(Base):
     last_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     company: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     sector: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    company_size: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # Engagement counters — updated by bs_email open/click tracking
+    email_opens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    email_clicks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    page_visits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Scoring
     score: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
     score_tier: Mapped[ScoreTier] = mapped_column(

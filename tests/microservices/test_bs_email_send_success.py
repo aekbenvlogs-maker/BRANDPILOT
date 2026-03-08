@@ -29,18 +29,21 @@ async def test_send_email_returns_false_when_not_found():
 
 @pytest.mark.asyncio
 async def test_send_email_smtp_failure_returns_false():
+    import uuid as _uuid
     from database.models_orm import Email, Lead
     from microservices.bs_email.service import send_email
 
+    _email_id = _uuid.uuid4()
+    _lead_id = _uuid.uuid4()
+
     fake_email = Email(
-        id="email-1",
-        campaign_id="camp-1",
-        lead_id="lead-1",
+        id=_email_id,
+        campaign_id=_uuid.uuid4(),
+        lead_id=_lead_id,
         subject="Test",
-        body_html="<p>Hello</p>",
-        status="pending",
+        body="<p>Hello</p>",
     )
-    fake_lead = Lead(id="lead-1", email_encrypted="test@example.com", opt_in=True)
+    fake_lead = Lead(id=_lead_id, email="encrypted-placeholder", opt_in=True)
 
     call_count = 0
 
@@ -54,8 +57,13 @@ async def test_send_email_smtp_failure_returns_false():
             mock_result.scalar_one_or_none.return_value = fake_lead
         return mock_result
 
+    mock_smtp_instance = MagicMock()
+    mock_smtp_instance.__aenter__ = AsyncMock(side_effect=Exception("SMTP failed"))
+    mock_smtp_instance.__aexit__ = AsyncMock(return_value=False)
+
     with patch("microservices.bs_email.service.db_session") as mock_ctx, \
-         patch("microservices.bs_email.service.smtplib.SMTP", side_effect=Exception("SMTP failed")):
+         patch("microservices.bs_email.service.decrypt_pii", return_value="test@example.com"), \
+         patch("microservices.bs_email.service.aiosmtplib.SMTP", return_value=mock_smtp_instance):
 
         session = AsyncMock()
         session.execute = AsyncMock(side_effect=execute_side_effect)
@@ -63,6 +71,6 @@ async def test_send_email_smtp_failure_returns_false():
         mock_ctx.return_value.__aenter__ = AsyncMock(return_value=session)
         mock_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        result = await send_email("email-1")
+        result = await send_email(str(_email_id))
 
     assert result is False
