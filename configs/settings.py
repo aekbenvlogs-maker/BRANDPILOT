@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_user: str = Field(default="")
     smtp_password: str = Field(default="")
+    smtp_use_tls: bool = Field(default=False, description="Use TLS for SMTP connection")
     smtp_from_email: str = Field(default="noreply@brandscale.io")
     smtp_from_name: str = Field(default="BRANDSCALE")
     sendgrid_api_key: str = Field(default="")
@@ -113,6 +114,18 @@ class Settings(BaseSettings):
     # Encryption — RGPD
     # ---------------------------------------------------------------------------
     fernet_key: str = Field(description="Fernet key for PII encryption (base64)")
+    fernet_key_previous: str = Field(
+        default="",
+        description="Previous Fernet key for key rotation (MultiFernet decryption fallback)",
+    )
+
+    # ---------------------------------------------------------------------------
+    # Application base URL (used for double opt-in confirmation links)
+    # ---------------------------------------------------------------------------
+    base_url: str = Field(
+        default="http://localhost:8000",
+        description="Public base URL of the BRANDSCALE API",
+    )
 
     # ---------------------------------------------------------------------------
     # Monitoring

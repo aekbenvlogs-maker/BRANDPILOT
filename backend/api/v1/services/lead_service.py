@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, MultiFernet
 from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +30,21 @@ settings = get_settings()
 # ---------------------------------------------------------------------------
 # Fernet encryption for PII fields
 # ---------------------------------------------------------------------------
-_fernet = Fernet(settings.fernet_key.encode())
+def _get_fernet() -> MultiFernet:
+    """
+    Build a MultiFernet instance supporting key rotation.
+
+    The primary key is FERNET_KEY. If FERNET_KEY_PREVIOUS is set (non-empty),
+    it is added as a decryption fallback so that data encrypted with the old
+    key can still be read during rotation, without any downtime.
+    """
+    keys = [Fernet(settings.fernet_key.encode())]
+    if settings.fernet_key_previous:
+        keys.append(Fernet(settings.fernet_key_previous.encode()))
+    return MultiFernet(keys)
+
+
+_fernet = _get_fernet()
 
 
 def encrypt_pii(value: Optional[str]) -> Optional[str]:

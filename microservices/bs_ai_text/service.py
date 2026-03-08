@@ -20,7 +20,7 @@ import redis.asyncio as aioredis
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from configs.ai_config import get_fallback_template, get_model_config, get_openai_client
+from configs.ai_config import compute_cost, get_fallback_template, get_model_config, get_openai_client
 from configs.settings import get_settings
 from database.connection import db_session
 from database.models_orm import Analytics
@@ -150,7 +150,9 @@ async def _generate_text(
         text = response.choices[0].message.content or ""
         usage = response.usage
         tokens_used = usage.total_tokens if usage else 0
-        cost_usd = (tokens_used / 1000) * 0.01  # approximate cost
+        prompt_tokens = usage.prompt_tokens if usage else 0
+        completion_tokens = usage.completion_tokens if usage else 0
+        cost_usd = compute_cost(config.name, prompt_tokens, completion_tokens)
 
         # Cache result
         await _set_cached(cache_key, text)
@@ -204,29 +206,42 @@ async def generate_post(
     platform: str = "linkedin",
     language: str = "fr",
     campaign_id: Optional[uuid.UUID] = None,
+    sector: str = "other",
+    company: str = "",
+    company_size: str = "other",
+    score_tier: str = "cold",
 ) -> dict[str, Any]:
     """
     Generate a social media post for a lead.
 
     Args:
-        lead_id:  Lead UUID (for personalisation context).
-        tone:     Writing tone (professional/casual/inspirational).
-        platform: Target platform (linkedin/twitter/instagram).
-        language: Output language code.
+        lead_id:      Lead UUID (kept for backwards compatibility).
+        tone:         Writing tone (professional/casual/inspirational).
+        platform:     Target platform (linkedin/twitter/instagram).
+        language:     Output language code.
+        sector:       Lead sector for prompt personalisation.
+        company:      Lead company name.
+        company_size: Lead company size tier.
+        score_tier:   Lead scoring tier (hot/warm/cold).
 
     Returns:
         Dict with text, tokens_used, cost_usd, from_fallback.
     """
+    lead_context = f"{sector} professional at a {company_size} company"
+    if company:
+        lead_context += f" ({company})"
     system_prompt = (
         f"You are BRANDSCALE, a social media expert. "
         f"Write a {tone} post for {platform}. Language: {language}. "
         f"Max 280 characters for Twitter, 1300 for LinkedIn. Include relevant hashtags."
     )
     user_prompt = (
-        f"Write a marketing post for platform={platform}, tone={tone}. "
-        f"Lead context: id={lead_id}. Language: {language}."
+        f"Write a {tone} marketing post for {platform} targeting a {lead_context}. "
+        f"Score tier: {score_tier}. Language: {language}. "
+        f"Make it specific to the {sector} industry."
     )
-    key = _cache_key("post", lead_id=str(lead_id), tone=tone, platform=platform, lang=language)
+    # Cache key uses profile (not lead_id) for cross-lead reuse
+    key = _cache_key("post", sector=sector, tone=tone, platform=platform, lang=language)
     return await _generate_text(system_prompt, user_prompt, "post", key, campaign_id)
 
 
@@ -256,7 +271,7 @@ async def generate_email_content(
         f"Write a personalised marketing email. "
         f"campaign_id={campaign_id} lead_id={lead_id} language={language}."
     )
-    key = _cache_key("email", lead_id=str(lead_id), campaign_id=str(campaign_id), lang=language)
+    key = _cache_key("email", campaign_id=str(campaign_id), sector="other", lang=language)
     return await _generate_text(system_prompt, user_prompt, "email", key, campaign_id)
 
 
@@ -265,6 +280,7 @@ async def generate_ad_copy(
     tone: str = "persuasive",
     language: str = "fr",
     campaign_id: Optional[uuid.UUID] = None,
+    sector: str = "other",
 ) -> dict[str, Any]:
     """
     Generate concise ad copy for a lead.
@@ -282,8 +298,8 @@ async def generate_ad_copy(
         f"Write {tone} ad copy in {language}. Max 150 characters. "
         "Strong CTA required."
     )
-    user_prompt = f"Write ad copy for lead_id={lead_id}, tone={tone}, language={language}."
-    key = _cache_key("ad", lead_id=str(lead_id), tone=tone, lang=language)
+    user_prompt = f"Write ad copy for a {sector} audience, tone={tone}, language={language}."
+    key = _cache_key("ad", sector=sector, tone=tone, lang=language)
     return await _generate_text(system_prompt, user_prompt, "ad", key, campaign_id)
 
 

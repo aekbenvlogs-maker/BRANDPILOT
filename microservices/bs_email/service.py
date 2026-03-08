@@ -116,7 +116,13 @@ async def send_email(email_id: str) -> bool:
             return False
         recipient_result = await session.execute(select(Lead).where(Lead.id == email.lead_id))
         lead = recipient_result.scalar_one_or_none()
-        recipient = decrypt_pii(lead.email) if lead else None
+        if not lead or not lead.opt_in:
+            logger.info(
+                "[bs_email] Email skipped — lead not found or opt_in=False | email_id={}",
+                email_id,
+            )
+            return False
+        recipient = decrypt_pii(lead.email)
         if not recipient:
             logger.warning("[bs_email] No recipient for email_id={}", email_id)
             return False

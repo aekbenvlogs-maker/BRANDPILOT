@@ -11,16 +11,19 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from celery import Celery, chain, group
+from celery.schedules import crontab
 from loguru import logger
-from sqlalchemy import update
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from configs.alerting import send_alert
 from configs.settings import get_settings
 from database.connection import db_session
-from database.models_orm import WorkflowJob
+from database.models_orm import Campaign, Lead, ScoringWeights, WorkflowJob
 from microservices.bs_ai_image.worker import task_generate_image
 from microservices.bs_ai_text.worker import task_generate_email, task_generate_post
 from microservices.bs_email.worker import task_create_sequence, task_send_email
@@ -33,6 +36,19 @@ _celery = Celery(
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
 )
+
+# Celery beat schedule — periodic tasks
+_celery.conf.beat_schedule = {
+    "rgpd-lead-purge": {
+        "task": "brandscale.purge_expired_leads",
+        "schedule": crontab(hour=2, minute=0),  # 02:00 UTC every day
+    },
+}
+
+
+class BudgetExceededError(Exception):
+    """Raised when a campaign's AI budget has been fully consumed."""
+
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -56,7 +72,7 @@ async def _create_job(job_type: str, payload: dict[str, Any]) -> str:
 async def _update_job_status(job_id: str, status: str, result: Any = None) -> None:
     """Update a WorkflowJob status and optional result."""
     async with db_session() as session:
-        values: dict[str, Any] = {"status": status, "updated_at": datetime.now(UTC)}
+        values: dict[str, Any] = {"status": status}
         if result is not None:
             values["result"] = result
         await session.execute(update(WorkflowJob).where(WorkflowJob.id == job_id).values(**values))
@@ -65,6 +81,65 @@ async def _update_job_status(job_id: str, status: str, result: Any = None) -> No
 
 
 # ─── Lead Pipeline ────────────────────────────────────────────────────────────
+
+
+async def _check_campaign_budget(campaign_id: str, session: AsyncSession) -> None:
+    """Raise BudgetExceededError if the campaign's AI budget is exhausted."""
+    result = await session.execute(
+        select(Campaign).where(Campaign.id == uuid.UUID(campaign_id))
+    )
+    campaign = result.scalar_one_or_none()
+    if (
+        campaign
+        and campaign.ai_budget_usd
+        and float(campaign.ai_spent_usd) >= float(campaign.ai_budget_usd)
+    ):
+        raise BudgetExceededError(
+            f"Campaign {campaign_id}: AI budget exhausted "
+            f"({campaign.ai_spent_usd}$ / {campaign.ai_budget_usd}$)"
+        )
+    # Alert at 80% threshold
+    if (
+        campaign
+        and campaign.ai_budget_usd
+        and float(campaign.ai_spent_usd) >= 0.8 * float(campaign.ai_budget_usd)
+    ):
+        ratio = float(campaign.ai_spent_usd) / float(campaign.ai_budget_usd)
+        await send_alert(
+            f"Campaign {campaign_id}: {ratio:.0%} of AI budget consumed "
+            f"({campaign.ai_spent_usd}$ / {campaign.ai_budget_usd}$)",
+            level="warning",
+        )
+
+
+async def _adjust_scoring_weights(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    delta: dict[str, float],
+) -> None:
+    """
+    Adjust scoring dimension weights by delta, clamped to [0.05, 0.70].
+
+    Args:
+        session:    Async DB session.
+        project_id: Project UUID.
+        delta:      Dict of field → adjustment (e.g. {'engagement_w': +0.05}).
+    """
+    result = await session.execute(
+        select(ScoringWeights).where(ScoringWeights.project_id == project_id)
+    )
+    weights = result.scalar_one_or_none()
+    if weights is None:
+        weights = ScoringWeights(project_id=project_id)
+        session.add(weights)
+    for field, change in delta.items():
+        current = getattr(weights, field, None)
+        if current is not None:
+            new_val = max(0.05, min(0.70, float(current) + change))
+            setattr(weights, field, new_val)
+    weights.updated_by = "feedback_loop"
+    await session.commit()
+    logger.info("[workflow] Scoring weights adjusted | project={} delta={}", project_id, delta)
 
 
 async def run_lead_pipeline(leads: list[dict[str, Any]], campaign_id: str) -> str:
@@ -124,6 +199,11 @@ async def run_campaign_pipeline(
     job_id = await _create_job("campaign_pipeline", {"campaign": campaign_data.get("id")})
     logger.info("[workflow] Campaign pipeline start | job={}", job_id)
     try:
+        # Budget preflight — abort before dispatching any API calls
+        cid = campaign_data.get("id")
+        if cid:
+            async with db_session() as session:
+                await _check_campaign_budget(str(cid), session)
         content_tasks = group(
             task_generate_post.s(lead.get("sector", "B2B"), campaign_data.get("tone", "professional"))
             for lead in leads[:5]  # generate up to 5 personalised posts
@@ -173,6 +253,23 @@ async def run_feedback_loop(campaign_id: str, kpis: dict[str, Any]) -> str:
             "conversion_rate": conversion_rate,
             "recommendations": _build_recommendations(open_rate, click_rate, conversion_rate),
         }
+
+        # Fetch project_id from campaign to update scoring weights
+        async with db_session() as session:
+            camp_result = await session.execute(
+                select(Campaign).where(Campaign.id == uuid.UUID(campaign_id))
+            )
+            campaign = camp_result.scalar_one_or_none()
+            if campaign and analysis["performance_tier"] == "low":
+                await _adjust_scoring_weights(
+                    session=session,
+                    project_id=campaign.project_id,
+                    delta={"engagement_w": +0.05, "sector_w": -0.05},
+                )
+                logger.info(
+                    "[workflow] Weights adjusted (low performance) | campaign={}", campaign_id
+                )
+
         await _update_job_status(job_id, "completed", analysis)
     except Exception as exc:
         logger.error("[workflow] Feedback loop error | job={} | {}", job_id, str(exc))
@@ -264,3 +361,37 @@ def run_l2c_pipeline(self: Any, campaign_id: str) -> dict[str, Any]:
             "[workflow] run_l2c_pipeline failed | campaign={} error={}", campaign_id, str(exc)
         )
         raise self.retry(exc=exc)
+
+
+# ─── RGPD Periodic Task ───────────────────────────────────────────────────────
+
+
+@_celery.task(name="brandscale.purge_expired_leads")
+def purge_expired_leads() -> dict[str, int]:
+    """
+    RGPD art. 5 data-minimisation: delete leads older than data_retention_days.
+
+    Runs daily at 02:00 UTC via Celery beat schedule.
+
+    Returns:
+        Dict with count of deleted leads.
+    """
+    import asyncio
+
+    async def _run() -> dict[str, int]:
+        cutoff = datetime.now(UTC) - timedelta(days=settings.data_retention_days)
+        async with db_session() as session:
+            result = await session.execute(
+                delete(Lead).where(Lead.created_at < cutoff)
+            )
+            await session.commit()
+        logger.info(
+            "[workflow] RGPD purge completed | deleted={} cutoff={}", result.rowcount, cutoff
+        )
+        await send_alert(
+            f"RGPD purge: {result.rowcount} leads deleted (cutoff: {cutoff.date()})",
+            level="info",
+        )
+        return {"deleted": result.rowcount}
+
+    return asyncio.run(_run())

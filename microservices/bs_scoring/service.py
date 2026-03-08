@@ -175,4 +175,18 @@ def explain_score(lead: dict[str, Any]) -> dict[str, Any]:
         "total_score": total,
         "tier": tier,
         "improvement_hints": hints,
+        "warning": (
+            "Partial score — missing fields: "
+            + ", ".join(
+                f
+                for f, v in [
+                    ("company_size", lead.get("company_size")),
+                    ("email_opens", lead.get("email_opens", 0)),
+                ]
+                if not v
+            )
+        )
+        if not lead.get("company_size")
+        or (lead.get("email_opens", 0) == 0 and lead.get("email_clicks", 0) == 0)
+        else None,
     }

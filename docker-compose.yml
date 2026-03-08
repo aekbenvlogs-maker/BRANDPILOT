@@ -33,7 +33,7 @@ services:
   # ── Redis ────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes --appendfsync everysec
     volumes:
       - redis_data:/data
     healthcheck:
@@ -66,14 +66,68 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # ── Celery Worker ────────────────────────────────────────
+  # ── Celery Worker ─ bs_ai_text ────────────────────────────────────
   celery_worker:
     build:
       context: .
       dockerfile: Dockerfile.backend
     command: >
       celery -A microservices.bs_ai_text.worker.celery_app worker
-      --loglevel=info --concurrency=4 --hostname=worker@%h
+      --loglevel=info --concurrency=4 --hostname=worker_ai_text@%h
+    environment:
+      <<: *common-env
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery Worker ─ bs_scoring ───────────────────────────────────
+  celery_scoring:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: >
+      celery -A microservices.bs_scoring.worker.celery_app worker
+      --loglevel=info --concurrency=8 --hostname=worker_scoring@%h
+    environment:
+      <<: *common-env
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery Worker ─ bs_email ─────────────────────────────────────
+  celery_email:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: >
+      celery -A microservices.bs_email.worker.celery_app worker
+      --loglevel=info --concurrency=4 --hostname=worker_email@%h
+    environment:
+      <<: *common-env
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery Beat (periodic tasks — RGPD purge etc.) ──────────────────
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: >
+      celery -A microservices.workflow._celery beat
+      --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     environment:
       <<: *common-env
     env_file: .env

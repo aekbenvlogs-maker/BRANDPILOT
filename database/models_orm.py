@@ -165,6 +165,9 @@ class Project(Base):
     leads: Mapped[list[Lead]] = relationship(
         "Lead", back_populates="project", cascade="all, delete-orphan"
     )
+    scoring_weights: Mapped[list[ScoringWeights]] = relationship(
+        "ScoringWeights", back_populates="project", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("idx_projects_user_id", "user_id"),
@@ -205,6 +208,13 @@ class Campaign(Base):
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
     launched_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    ai_budget_usd: Mapped[Optional[float]] = mapped_column(
+        Numeric(10, 2), nullable=True, comment="AI budget cap in USD for this campaign"
+    )
+    ai_spent_usd: Mapped[float] = mapped_column(
+        Numeric(10, 4), nullable=False, default=0.0,
+        comment="AI cost consumed so far in USD"
+    )
 
     # Relationships
     project: Mapped[Project] = relationship("Project", back_populates="campaigns")
@@ -410,6 +420,73 @@ class Analytics(Base):
 
     def __repr__(self) -> str:
         return f"<Analytics campaign={self.campaign_id} date={self.date}>"
+
+
+# ---------------------------------------------------------------------------
+# ScoringWeights
+# ---------------------------------------------------------------------------
+class ScoringWeights(Base):
+    """Feedback-loop-adjustable scoring dimension weights, one row per project."""
+
+    __tablename__ = "scoring_weights"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sector_w: Mapped[float] = mapped_column(nullable=False, default=0.25)
+    company_size_w: Mapped[float] = mapped_column(nullable=False, default=0.20)
+    engagement_w: Mapped[float] = mapped_column(nullable=False, default=0.35)
+    source_w: Mapped[float] = mapped_column(nullable=False, default=0.20)
+    updated_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    updated_by: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="system",
+        comment="'system' (feedback loop) or 'manual'"
+    )
+
+    # Relationships
+    project: Mapped[Project] = relationship("Project", back_populates="scoring_weights")
+
+    def __repr__(self) -> str:
+        return f"<ScoringWeights project={self.project_id} eng={self.engagement_w}>"
+
+
+# ---------------------------------------------------------------------------
+# PromptTemplate
+# ---------------------------------------------------------------------------
+class PromptTemplate(Base):
+    """Versioned AI prompt templates, switchable at runtime without deploys."""
+
+    __tablename__ = "prompt_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    content_type: Mapped[str] = mapped_column(
+        String(32), nullable=False,
+        comment="post / email / ad / newsletter / video_script"
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    user_prompt_template: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_prompt_templates_type_active", "content_type", "is_active"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PromptTemplate type={self.content_type} v{self.version} active={self.is_active}>"
 
 
 # ---------------------------------------------------------------------------

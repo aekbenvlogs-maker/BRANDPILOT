@@ -16,6 +16,7 @@ from collections.abc import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from configs.logging_config import setup_logging
 from configs.settings import get_settings
@@ -127,6 +128,9 @@ def create_app() -> FastAPI:
 
     # --- Routers ---
     _register_routers(app)
+
+    # --- Prometheus metrics ---
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
     return app
 
