@@ -1,0 +1,57 @@
+# ============================================================
+# BRANDSCALE — Vertical: ESN (Prestataires IT / ESN)
+# Spécialisation pour les Entreprises de Services du Numérique
+# Prix : €149/mois
+# ============================================================
+
+meta:
+  name: "BRANDSCALE ESN"
+  label: "ESN / Prestataires IT"
+  version: "1.0.0"
+  price_eur_month: 149
+  description: "Plateforme IA pour ESN, SSII et prestataires IT B2B — appels d'offres et réponses à consultation"
+
+scoring:
+  # Poids ESN : secteur et taille dominent (DSI des grandes entreprises = clients cibles)
+  # L'ESN cible les grands comptes avec budgets IT élevés dans des secteurs tech
+  weights:
+    sector: 0.30
+    company_size: 0.30
+    engagement: 0.25
+    source: 0.15
+  thresholds:
+    hot: 65     # Seuil élevé : les ESN visent uniquement les prospects très qualifiés
+    warm: 42
+    cold: 0
+
+custom_fields: []
+
+email:
+  sequences:
+    cold:
+      subject: "Générez des appels d'offres IT qualifiés avec l'IA"
+      interval_days: 7
+    warm:
+      subject: "BRANDSCALE ESN — automatisez votre pipeline commercial IT"
+      interval_days: 5
+    hot:
+      subject: "Transformez votre prospection ESN — démonstration en 20 minutes"
+      interval_days: 2
+
+# Cycles budgétaires IT : Q4 (renouvellements) et janvier (nouveaux projets)
+seasonal_triggers:
+  - month: 10
+    label: "Appels d'offres Q4 — renouvellements budgets IT"
+    subject_override: "Fin d'année IT — positionnez-vous sur les appels d'offres Q4 avec l'IA"
+
+  - month: 1
+    label: "Nouveaux projets janvier — démarrage exercice IT"
+    subject_override: "Janvier projets IT — lancez votre pipeline ESN 2026 avec BRANDSCALE"
+
+ai:
+  tone: technical
+  system_prompt_suffix: >
+    Tu t'adresses à des ESN, SSII et prestataires IT B2B.
+    Mets en avant : automatisation de la veille appels d'offres, qualification
+    des RFP/RFI par IA, optimisation des réponses à consultation, et développement
+    du portefeuille grands comptes. Utilise un ton technique et orienté ROI commercial.

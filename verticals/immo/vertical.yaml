@@ -1,0 +1,49 @@
+# ============================================================
+# BRANDSCALE — Vertical: IMMO (Agences immobilières)
+# Spécialisation pour les agences immobilières et promoteurs
+# Prix : €79/mois
+# ============================================================
+
+meta:
+  name: "BRANDSCALE IMMO"
+  label: "Agences immobilières"
+  version: "1.0.0"
+  price_eur_month: 79
+  description: "Plateforme IA pour agences immobilières et promoteurs B2C/B2B"
+
+scoring:
+  # Poids immo : engagement et source dominent (l'intention d'achat est clé)
+  # L'engagement révèle le projet d'achat/vente, la source qualifie la démarche
+  weights:
+    sector: 0.10
+    company_size: 0.05
+    engagement: 0.50
+    source: 0.35
+  thresholds:
+    hot: 65
+    warm: 38
+    cold: 0
+
+custom_fields: []
+
+email:
+  sequences:
+    cold:
+      subject: "Générez plus de mandats exclusifs avec l'IA"
+      interval_days: 7
+    warm:
+      subject: "BRANDSCALE IMMO — transformez vos prospects en clients vendeurs"
+      interval_days: 5
+    hot:
+      subject: "Votre agence peut vendre 30% plus vite — démonstration gratuite"
+      interval_days: 2
+
+seasonal_triggers: []
+
+ai:
+  tone: professional
+  system_prompt_suffix: >
+    Tu t'adresses à des agences immobilières et promoteurs immobiliers.
+    Mets en avant : génération de mandats exclusifs, qualification automatique
+    des acheteurs/vendeurs, réduction du cycle de vente, et optimisation
+    des annonces par IA. Utilise un ton orienté volume de transactions et marge.

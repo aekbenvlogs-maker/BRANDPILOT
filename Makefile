@@ -7,7 +7,8 @@
 # LAST UPDATED : 2026-03-08
 # ============================================================
 
-.PHONY: all format lint typecheck test qa build docker migrate clean help
+.PHONY: all format lint typecheck test qa build docker migrate clean help \
+        vertical validate-vertical list-verticals validate-all-verticals
 
 # ---------------------------------------------------------------------------
 # Variables
@@ -54,9 +55,12 @@ help:
 	@echo "  $(GREEN)make clean$(RESET)      → Remove build artifacts and caches"
 	@echo "  $(GREEN)make help$(RESET)       → Show this help"
 	@echo ""
-
-# ---------------------------------------------------------------------------
-# format — Black (Python) + Prettier (TypeScript)
+        @echo "$(BLUE)  Multi-Vertical targets$(RESET)"
+        @echo "  $(GREEN)make vertical VERTICAL=rh$(RESET)          → Switch + validate a vertical"
+        @echo "  $(GREEN)make validate-vertical VERTICAL=rh$(RESET) → Validate one vertical YAML"
+        @echo "  $(GREEN)make list-verticals$(RESET)                → List available verticals"
+        @echo "  $(GREEN)make validate-all-verticals$(RESET)        → Validate all 6 verticals"
+        @echo ""
 # ---------------------------------------------------------------------------
 format:
 	@echo "$(YELLOW)▶ [BRANDSCALE] Running Black formatter...$(RESET)"
@@ -190,6 +194,52 @@ clean:
 	rm -f BRANDSCALE_coverage_report.html 2>/dev/null || true
 	cd $(FRONTEND_SRC) && rm -rf .next out node_modules/.cache 2>/dev/null || true
 	@echo "$(GREEN)✓ Clean complete$(RESET)"
+
+# ---------------------------------------------------------------------------
+# vertical — Switch and validate an active vertical
+# Usage: make vertical VERTICAL=rh
+# ---------------------------------------------------------------------------
+vertical:
+	@if [ -z "$(VERTICAL)" ]; then \
+		echo "$(RED)✗ Usage: make vertical VERTICAL=<name>$(RESET)"; \
+		echo "  Supported: generic rh immo compta formation esn"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)▶ [BRANDSCALE] Switching to vertical: $(VERTICAL)$(RESET)"
+	@$(PYTHON) scripts/validate_vertical.py $(VERTICAL)
+	@echo "$(GREEN)✓ Vertical '$(VERTICAL)' ready — set VERTICAL=$(VERTICAL) in .env to activate$(RESET)"
+
+# ---------------------------------------------------------------------------
+# validate-vertical — Validate one vertical YAML
+# Usage: make validate-vertical VERTICAL=rh
+# ---------------------------------------------------------------------------
+validate-vertical:
+	@if [ -z "$(VERTICAL)" ]; then \
+		echo "$(RED)✗ Usage: make validate-vertical VERTICAL=<name>$(RESET)"; \
+		exit 1; \
+	fi
+	@$(PYTHON) scripts/validate_vertical.py $(VERTICAL)
+
+# ---------------------------------------------------------------------------
+# list-verticals — List all available verticals
+# ---------------------------------------------------------------------------
+list-verticals:
+	@echo "$(BLUE)Available verticals:$(RESET)"
+	@ls -1 verticals/ 2>/dev/null | while read v; do \
+		if [ -f "verticals/$$v/vertical.yaml" ]; then \
+			echo "  $(GREEN)✓$(RESET) $$v"; \
+		fi; \
+	done
+
+# ---------------------------------------------------------------------------
+# validate-all-verticals — Validate all 6 vertical YAML configs
+# ---------------------------------------------------------------------------
+validate-all-verticals:
+	@echo "$(YELLOW)▶ [BRANDSCALE] Validating all verticals...$(RESET)"
+	@for v in generic rh immo compta formation esn; do \
+		$(PYTHON) scripts/validate_vertical.py $$v || exit 1; \
+	done
+	@echo "$(GREEN)✓ All verticals validated$(RESET)"
 
 # ---------------------------------------------------------------------------
 # all — Full pipeline

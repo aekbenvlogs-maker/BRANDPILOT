@@ -14,13 +14,50 @@ from typing import Any
 
 from loguru import logger
 
-# Scoring weights (must sum to 1.0)
-_WEIGHTS: dict[str, float] = {
+# ---------------------------------------------------------------------------
+# Generic fallback weights (used if vertical config is unavailable)
+# These match the generic vertical.yaml to guarantee zero regression.
+# ---------------------------------------------------------------------------
+_FALLBACK_WEIGHTS: dict[str, float] = {
     "sector": 0.25,
     "company_size": 0.20,
     "engagement": 0.35,
     "source": 0.20,
 }
+
+_FALLBACK_THRESHOLDS: dict[str, int] = {
+    "hot": 70,
+    "warm": 40,
+    "cold": 0,
+}
+
+
+def _get_weights() -> dict[str, float]:
+    """Return scoring weights from the active vertical configuration."""
+    try:
+        from configs.settings import get_settings
+
+        return get_settings().scoring_weights
+    except Exception as exc:
+        logger.warning(
+            "[bs_scoring] Could not load vertical weights, using fallback | error={}",
+            exc,
+        )
+        return _FALLBACK_WEIGHTS
+
+
+def _get_thresholds() -> dict[str, int]:
+    """Return scoring thresholds from the active vertical configuration."""
+    try:
+        from configs.settings import get_settings
+
+        return get_settings().scoring_thresholds
+    except Exception as exc:
+        logger.warning(
+            "[bs_scoring] Could not load vertical thresholds, using fallback | error={}",
+            exc,
+        )
+        return _FALLBACK_THRESHOLDS
 
 # Sector importance mapping (B2B focus)
 _SECTOR_SCORES: dict[str, int] = {
@@ -97,7 +134,8 @@ def score_lead(lead: dict[str, Any]) -> int:
         "engagement": _score_engagement(lead),
         "source": _score_source(lead),
     }
-    weighted = sum(breakdown[k] * _WEIGHTS[k] for k in breakdown)
+    weights = _get_weights()
+    weighted = sum(breakdown[k] * weights[k] for k in breakdown)
     final_score = round(weighted)
     logger.debug("[bs_scoring] score_lead | lead_id={} | score={}", lead.get("id"), final_score)
     return final_score
@@ -134,9 +172,10 @@ def classify_tier(score: int) -> str:
     Returns:
         "hot", "warm", or "cold".
     """
-    if score >= 70:
+    thresholds = _get_thresholds()
+    if score >= thresholds["hot"]:
         return "hot"
-    if score >= 40:
+    if score >= thresholds["warm"]:
         return "warm"
     return "cold"
 
@@ -157,7 +196,8 @@ def explain_score(lead: dict[str, Any]) -> dict[str, Any]:
         "engagement": _score_engagement(lead),
         "source": _score_source(lead),
     }
-    weighted = {k: round(factors[k] * _WEIGHTS[k], 2) for k in factors}
+    weights = _get_weights()
+    weighted = {k: round(factors[k] * weights[k], 2) for k in factors}
     total = round(sum(weighted.values()))
     tier = classify_tier(total)
     hints: list[str] = []
@@ -170,7 +210,7 @@ def explain_score(lead: dict[str, Any]) -> dict[str, Any]:
     return {
         "lead_id": lead.get("id"),
         "factors": factors,
-        "weights": _WEIGHTS,
+        "weights": weights,
         "weighted_contribution": weighted,
         "total_score": total,
         "tier": tier,

@@ -11,9 +11,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl, EmailStr, Field, field_validator
+import yaml
+from pydantic import AliasChoices, AnyHttpUrl, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +32,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,
     )
 
     # ---------------------------------------------------------------------------
@@ -154,6 +157,16 @@ class Settings(BaseSettings):
     data_retention_days: int = Field(default=730, ge=1)
 
     # ---------------------------------------------------------------------------
+    # Multi-vertical configuration
+    # ---------------------------------------------------------------------------
+    active_vertical: str = Field(
+        default="generic",
+        validation_alias=AliasChoices("VERTICAL", "active_vertical"),
+        description="Active vertical — override with VERTICAL=xxx env var. "
+        "Supported: generic | rh | immo | compta | formation | esn",
+    )
+
+    # ---------------------------------------------------------------------------
     # Validators
     # ---------------------------------------------------------------------------
     @field_validator("cors_origins", mode="before")
@@ -189,6 +202,44 @@ class Settings(BaseSettings):
         if self.app_env == "development":
             return self.database_url_dev
         return self.database_url
+
+    # ---------------------------------------------------------------------------
+    # Multi-vertical computed properties
+    # ---------------------------------------------------------------------------
+    @property
+    def vertical_config(self) -> dict:
+        """Load and return the active vertical's YAML configuration."""
+        return _load_vertical_config(self.active_vertical)
+
+    @property
+    def scoring_weights(self) -> dict[str, float]:
+        """Return scoring weights for the active vertical (must sum to 1.0)."""
+        return self.vertical_config["scoring"]["weights"]
+
+    @property
+    def scoring_thresholds(self) -> dict[str, int]:
+        """Return scoring thresholds (hot/warm/cold) for the active vertical."""
+        return self.vertical_config["scoring"]["thresholds"]
+
+
+@lru_cache(maxsize=6)
+def _load_vertical_config(vertical: str) -> dict:
+    """
+    Load and cache a vertical YAML configuration file.
+
+    Cached per vertical name (max 6 entries — one per supported vertical).
+    Raises FileNotFoundError if the vertical YAML does not exist.
+    """
+    path = Path(__file__).parent.parent / "verticals" / vertical / "vertical.yaml"
+    if not path.exists():
+        supported = "generic | rh | immo | compta | formation | esn"
+        raise FileNotFoundError(
+            f"Vertical config not found: {path}\n"
+            f"Supported verticals: {supported}\n"
+            f"Run 'make list-verticals' to see available verticals."
+        )
+    with path.open(encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 @lru_cache(maxsize=1)

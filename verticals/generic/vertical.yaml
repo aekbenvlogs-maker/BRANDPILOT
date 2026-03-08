@@ -1,0 +1,42 @@
+# ============================================================
+# BRANDSCALE — Vertical: GENERIC (baseline)
+# Valeurs par défaut — zéro régression avec le comportement pré-multiversal
+# ============================================================
+
+meta:
+  name: "BRANDSCALE Generic"
+  label: "Générique"
+  version: "1.0.0"
+  price_eur_month: null
+  description: "Configuration générique — baseline pour toutes les verticales"
+
+scoring:
+  weights:
+    sector: 0.25
+    company_size: 0.20
+    engagement: 0.35
+    source: 0.20
+  thresholds:
+    hot: 70
+    warm: 40
+    cold: 0
+
+custom_fields: []
+
+email:
+  sequences:
+    cold:
+      subject: "Découvrez BRANDSCALE — l'IA au service de votre croissance"
+      interval_days: 7
+    warm:
+      subject: "BRANDSCALE — comment accélérer votre pipeline commercial"
+      interval_days: 5
+    hot:
+      subject: "Prêt à scaler votre brand ? Parlons-en cette semaine"
+      interval_days: 2
+
+seasonal_triggers: []
+
+ai:
+  tone: professional
+  system_prompt_suffix: ""

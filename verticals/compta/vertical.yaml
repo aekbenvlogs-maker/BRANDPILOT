@@ -1,0 +1,61 @@
+# ============================================================
+# BRANDSCALE — Vertical: COMPTA (Experts-comptables)
+# Spécialisation pour les cabinets d'expertise comptable
+# Prix : €89/mois
+# ============================================================
+
+meta:
+  name: "BRANDSCALE COMPTA"
+  label: "Experts-comptables"
+  version: "1.0.0"
+  price_eur_month: 89
+  description: "Plateforme IA pour cabinets d'expertise comptable et commissaires aux comptes"
+
+scoring:
+  # Poids compta : taille entreprise domine (les gros cabinets ont plus de clients
+  # et un budget commercial plus élevé pour automatiser leur acquisition)
+  weights:
+    sector: 0.20
+    company_size: 0.35
+    engagement: 0.30
+    source: 0.15
+  thresholds:
+    hot: 68
+    warm: 40
+    cold: 0
+
+custom_fields: []
+
+email:
+  sequences:
+    cold:
+      subject: "Automatisez l'acquisition client pour votre cabinet comptable"
+      interval_days: 7
+    warm:
+      subject: "BRANDSCALE COMPTA — développez votre portefeuille client avec l'IA"
+      interval_days: 5
+    hot:
+      subject: "Démonstration BRANDSCALE pour experts-comptables — 30 min chrono"
+      interval_days: 2
+
+# Déclencheurs saisonniers : périodes de clôture = pics d'activité commerciale
+seasonal_triggers:
+  - month: 3
+    label: "Clôture exercice mars (bilans Q1)"
+    subject_override: "Clôture d'exercice — rationalisez votre acquisition client en période de rush"
+
+  - month: 6
+    label: "Bilan semestriel juin"
+    subject_override: "Bilan S1 — préparez votre développement commercial pour H2"
+
+  - month: 12
+    label: "Clôture exercice décembre (bilans annuels)"
+    subject_override: "Clôture annuelle — préparez 2026 avec BRANDSCALE COMPTA"
+
+ai:
+  tone: professional
+  system_prompt_suffix: >
+    Tu t'adresses à des experts-comptables et commissaires aux comptes.
+    Mets en avant : rationalisation du temps commercial, automatisation de la
+    prospection TPE/PME, fidélisation client par IA, et conformité réglementaire.
+    Utilise un ton rigoureux et orienté rentabilité du cabinet.

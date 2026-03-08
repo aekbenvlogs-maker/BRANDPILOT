@@ -1,0 +1,69 @@
+# ============================================================
+# BRANDSCALE — Vertical: FORMATION (Organismes CPF/OPCO)
+# Spécialisation pour les organismes de formation professionnelle
+# Prix : €69/mois
+# ============================================================
+
+meta:
+  name: "BRANDSCALE FORMATION"
+  label: "Organismes de formation CPF/OPCO"
+  version: "1.0.0"
+  price_eur_month: 69
+  description: "Plateforme IA pour organismes de formation CPF, OPCO et certifiés Qualiopi"
+
+scoring:
+  # Poids formation : engagement domine (l'intérêt déclaré = intention de formation réelle)
+  weights:
+    sector: 0.20
+    company_size: 0.15
+    engagement: 0.45
+    source: 0.20
+  thresholds:
+    hot: 65
+    warm: 38
+    cold: 0
+
+# Champ métier : mode de financement = facteur clé de conversion
+custom_fields:
+  - name: financement
+    label: "Mode de financement envisagé"
+    type: string
+    score_map:
+      OPCO: 100           # Financement collectif = décision quasi-immédiate
+      CPF: 80             # Financement individuel dématérialisé — fort potentiel
+      Entreprise: 60      # Plan de développement compétences — cycle moyen
+      Perso: 30           # Autofinancement — frein prix plus fort
+
+email:
+  sequences:
+    cold:
+      subject: "Développez l'accès à vos formations certifiées avec l'IA"
+      interval_days: 7
+    warm:
+      subject: "BRANDSCALE FORMATION — automatisez votre prospection CPF/OPCO"
+      interval_days: 5
+    hot:
+      subject: "Prêt à multiplier vos inscriptions ? Réservez votre démo"
+      interval_days: 2
+
+# Saisonnalité forte : budgets formation libérés en début d'année, rentrée et fin d'exercice
+seasonal_triggers:
+  - month: 1
+    label: "Début d'année — budgets formation libérés"
+    subject_override: "Nouvelle année — budgets CPF et OPCO disponibles, profitez-en maintenant"
+
+  - month: 9
+    label: "Rentrée septembre — pic d'inscriptions"
+    subject_override: "Rentrée formation — maximisez vos inscriptions avec BRANDSCALE"
+
+  - month: 11
+    label: "Fin d'exercice OPCO — utiliser les budgets avant clôture"
+    subject_override: "Dernier trimestre — budgets OPCO à utiliser avant le 31 décembre"
+
+ai:
+  tone: pedagogical
+  system_prompt_suffix: >
+    Tu t'adresses à des organismes de formation professionnelle (CPF, OPCO, Qualiopi).
+    Mets en avant : facilité d'accès aux financements CPF et OPCO, automatisation
+    des parcours d'inscription, personnalisation pédagogique par IA, et amélioration
+    du taux de complétion. Utilise un ton accessible et orienté impact pédagogique.

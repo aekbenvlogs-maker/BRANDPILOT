@@ -1,0 +1,84 @@
+# ============================================================
+# BRANDSCALE — Vertical: RH (Cabinets de recrutement)
+# Spécialisation pour les cabinets et agences de recrutement B2B
+# Prix : €99/mois
+# ============================================================
+
+meta:
+  name: "BRANDSCALE RH"
+  label: "Cabinets de recrutement"
+  version: "1.0.0"
+  price_eur_month: 99
+  description: "Plateforme IA pour cabinets et agences de recrutement B2B"
+
+scoring:
+  # Poids recrutement : taille entreprise et engagement dominent
+  # (le cabinet vise les entreprises multi-postes à fort budget RH)
+  weights:
+    sector: 0.15
+    company_size: 0.30
+    engagement: 0.40
+    source: 0.15
+  thresholds:
+    hot: 62     # Seuil bas car le cycle de décision recrutement est rapide
+    warm: 35
+    cold: 0
+
+# Champs métier spécifiques au recrutement
+custom_fields:
+  - name: nb_postes_ouverts
+    label: "Nombre de postes ouverts"
+    type: integer
+    score_map: {}   # Score calculé dynamiquement (plus il y a de postes, meilleur le score)
+
+  - name: budget_recrutement
+    label: "Budget recrutement annuel"
+    type: string
+    score_map:
+      "100k+": 100
+      "50k-100k": 80
+      "20k-50k": 60
+      "<20k": 30
+
+  - name: type_contrat_recherche
+    label: "Type de contrat recherché"
+    type: string
+    score_map:
+      CDI: 100
+      CDD: 70
+      Freelance: 60
+      Stage: 20
+
+  - name: delai_recrutement
+    label: "Délai de recrutement souhaité"
+    type: string
+    score_map:
+      "<1 mois": 100
+      "1-3 mois": 80
+      "3-6 mois": 50
+      ">6 mois": 20
+
+email:
+  sequences:
+    cold:
+      subject: "Optimisez votre processus de recrutement avec l'IA"
+      interval_days: 7
+    warm:
+      subject: "BRANDSCALE RH — réduisez votre time-to-hire de 40%"
+      interval_days: 5
+    hot:
+      subject: "Prêt à transformer votre cabinet RH ? Réservez votre démo"
+      interval_days: 2
+    seasonal:
+      subject: "Rentrée RH — anticipez vos recrutements Q3/Q4 dès maintenant"
+      interval_days: 3
+
+seasonal_triggers: []   # Recrutement = besoin continu, pas de saisonnalité forte
+
+ai:
+  tone: professional
+  system_prompt_suffix: >
+    Tu t'adresses à des cabinets de recrutement et agences RH B2B.
+    Mets en avant : réduction du time-to-hire, automatisation du sourcing,
+    qualification des CVs par IA, et amélioration du taux de conversion
+    candidat → embauche. Utilise un ton orienté ROI et efficacité opérationnelle.
