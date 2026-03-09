@@ -14,6 +14,13 @@ from datetime import UTC, datetime, timedelta
 import hashlib
 import uuid
 
+# ---------------------------------------------------------------------------
+# Helper — naive UTC datetime for DB columns (TIMESTAMP WITHOUT TIME ZONE)
+# ---------------------------------------------------------------------------
+def _utcnow() -> datetime:
+    """Return current UTC time as timezone-naive datetime (for PostgreSQL TIMESTAMP columns)."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
 from database.models_orm import RefreshToken, User
 from jose import JWTError, jwt
 from loguru import logger
@@ -130,8 +137,8 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> User
         logger.warning("[BRANDSCALE] Failed login attempt for email={}", email)
         return None
 
-    # Update last login timestamp
-    user.last_login_at = datetime.now(UTC)
+    # Update last login timestamp — naive UTC (TIMESTAMP WITHOUT TIME ZONE in DB)
+    user.last_login_at = _utcnow()
     await db.flush()
     logger.info("[BRANDSCALE] User authenticated | id={} role={}", user.id, user.role)
     return user
@@ -146,7 +153,7 @@ async def store_refresh_token(db: AsyncSession, user_id: uuid.UUID, token: str) 
         user_id: Owner user UUID.
         token:   Raw refresh token string (stored as hash).
     """
-    expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
+    expires_at = _utcnow() + timedelta(days=settings.refresh_token_expire_days)
     record = RefreshToken(
         user_id=user_id,
         token_hash=_hash_token(token),
@@ -181,7 +188,7 @@ async def validate_refresh_token(db: AsyncSession, token: str) -> User | None:
         select(RefreshToken).where(
             RefreshToken.token_hash == token_hash,
             RefreshToken.revoked.is_(False),
-            RefreshToken.expires_at > datetime.now(UTC),
+            RefreshToken.expires_at > _utcnow(),
         )
     )
     stored = result.scalar_one_or_none()

@@ -107,7 +107,7 @@ class User(Base):
     )
     hashed_password: Mapped[str] = mapped_column(String(256), nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole), nullable=False, default=UserRole.manager
+        Enum(UserRole, name="user_role", create_type=False), nullable=False, default=UserRole.manager
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -196,10 +196,10 @@ class Campaign(Base):
     )
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     status: Mapped[CampaignStatus] = mapped_column(
-        Enum(CampaignStatus), nullable=False, default=CampaignStatus.draft
+        Enum(CampaignStatus, name="campaign_status", create_type=False), nullable=False, default=CampaignStatus.draft
     )
     channel: Mapped[CampaignChannel] = mapped_column(
-        Enum(CampaignChannel), nullable=False, default=CampaignChannel.email
+        Enum(CampaignChannel, name="campaign_channel", create_type=False), nullable=False, default=CampaignChannel.email
     )
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now()
@@ -272,7 +272,7 @@ class Lead(Base):
     # Scoring
     score: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
     score_tier: Mapped[ScoreTier] = mapped_column(
-        Enum(ScoreTier), nullable=False, default=ScoreTier.cold
+        Enum(ScoreTier, name="score_tier", create_type=False), nullable=False, default=ScoreTier.cold
     )
     score_updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
     # RGPD
@@ -326,7 +326,7 @@ class Content(Base):
         ForeignKey("leads.id", ondelete="SET NULL"),
         nullable=True,
     )
-    content_type: Mapped[ContentType] = mapped_column(Enum(ContentType), nullable=False)
+    content_type: Mapped[ContentType] = mapped_column(Enum(ContentType, name="content_type", create_type=False), nullable=False)
     body_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     video_url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -513,7 +513,7 @@ class WorkflowJob(Base):
     job_type: Mapped[str] = mapped_column(String(64), nullable=False)
     current_step: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[WorkflowStepStatus] = mapped_column(
-        Enum(WorkflowStepStatus),
+        Enum(WorkflowStepStatus, name="workflow_step_status", create_type=False),
         nullable=False,
         default=WorkflowStepStatus.pending,
     )

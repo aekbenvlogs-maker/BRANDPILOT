@@ -20,7 +20,7 @@ RUN pip install --upgrade pip \
     && pip install \
         fastapi "uvicorn[standard]" "sqlalchemy[asyncio]" alembic \
         "pydantic>=2.6.3" pydantic-settings "pydantic[email]" \
-        loguru "python-jose[cryptography]" "passlib[bcrypt]" python-multipart \
+        loguru "python-jose[cryptography]" "passlib[bcrypt]" "bcrypt==4.0.1" python-multipart \
         "celery[redis]" redis httpx boto3 cryptography openai \
         asyncpg aiosqlite aiosmtplib aiofiles \
         prometheus-fastapi-instrumentator flower \
