@@ -1,9 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { mutate } from "swr";
+import useSWR, { mutate } from "swr";
+import Link from "next/link";
 import useCampaigns from "@/hooks/useCampaigns";
 import { apiFetch } from "@/utils/api";
+
+interface Project {
+  id: string;
+  name: string;
+}
 
 interface Campaign {
   id: string;
@@ -70,14 +76,21 @@ function CampaignRow({
 
 export function CampaignManager() {
   const { campaigns, isLoading } = useCampaigns();
+  const { data: projectsData } = useSWR<{ items: Project[] }>(
+    "/api/v1/projects",
+    (url: string) => apiFetch<{ items: Project[] }>(url),
+  );
+  const projects = projectsData?.items ?? [];
+
   const [name, setName] = useState("");
   const [channel, setChannel] = useState("email");
+  const [projectId, setProjectId] = useState("");
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     await apiFetch("/api/v1/campaigns", {
       method: "POST",
-      body: JSON.stringify({ name, channel }),
+      body: JSON.stringify({ name, channel, project_id: projectId }),
     });
     setName("");
     await mutate("/api/v1/campaigns");
@@ -95,6 +108,15 @@ export function CampaignManager() {
 
   return (
     <div className="flex flex-col gap-6">
+      {projects.length === 0 && projectsData !== undefined && (
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-5 py-4 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
+          Vous n&apos;avez pas encore de projet.{" "}
+          <Link href="/projects" className="font-semibold underline">
+            Créer un projet
+          </Link>{" "}
+          avant de créer une campagne.
+        </div>
+      )}
       <form
         onSubmit={handleCreate}
         className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 md:flex-row"
@@ -108,6 +130,21 @@ export function CampaignManager() {
         />
         <select
           className="rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
+          required
+        >
+          <option value="" disabled>
+            Select project…
+          </option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <select
+          className="rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
           value={channel}
           onChange={(e) => setChannel(e.target.value)}
         >
@@ -118,7 +155,8 @@ export function CampaignManager() {
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          disabled={!projectId}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Create
         </button>
