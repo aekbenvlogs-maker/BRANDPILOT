@@ -39,9 +39,30 @@ export default function LoginPage() {
       router.push("/dashboard");
     } catch (err: unknown) {
       if (err instanceof Error) {
-        // Try to extract FastAPI detail from message
-        const match = err.message.match(/:\s*(.+)$/);
-        setError(match ? match[1] : err.message);
+        // Try to parse structured FastAPI error JSON from message
+        const jsonStart = err.message.indexOf("{");
+        if (jsonStart !== -1) {
+          try {
+            const parsed = JSON.parse(err.message.slice(jsonStart)) as {
+              detail?: string;
+              error?: string;
+              details?: { message: string }[];
+            };
+            if (parsed.details?.[0]?.message) {
+              setError(parsed.details[0].message.replace(/^Value error,\s*/i, ""));
+            } else if (parsed.detail) {
+              setError(parsed.detail);
+            } else if (parsed.error) {
+              setError(parsed.error);
+            } else {
+              setError(err.message);
+            }
+          } catch {
+            setError(err.message);
+          }
+        } else {
+          setError(err.message);
+        }
       } else {
         setError("Erreur inconnue");
       }
@@ -97,7 +118,10 @@ export default function LoginPage() {
 
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              Mot de passe {mode === "register" && <span className="text-neutral-400">(8 car. min.)</span>}
+              Mot de passe
+              {mode === "register" && (
+                <span className="ml-1 text-neutral-400">(8 car. min., au moins 1 chiffre)</span>
+              )}
             </label>
             <input
               type="password"
