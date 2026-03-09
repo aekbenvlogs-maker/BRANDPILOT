@@ -11,58 +11,20 @@
 from __future__ import annotations
 
 import csv
+from datetime import UTC, datetime
 import io
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
 
-from cryptography.fernet import Fernet, MultiFernet
+from database.crypto import decrypt_pii, encrypt_pii  # noqa: F401  (re-exported for backward compat)
+from database.models_orm import Lead, ScoreTier
 from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.models.lead import LeadCreate, LeadImportResponse, LeadUpdate
 from configs.settings import get_settings
-from database.models_orm import Lead, ScoreTier
 
 settings = get_settings()
-
-# ---------------------------------------------------------------------------
-# Fernet encryption for PII fields
-# ---------------------------------------------------------------------------
-def _get_fernet() -> MultiFernet:
-    """
-    Build a MultiFernet instance supporting key rotation.
-
-    The primary key is FERNET_KEY. If FERNET_KEY_PREVIOUS is set (non-empty),
-    it is added as a decryption fallback so that data encrypted with the old
-    key can still be read during rotation, without any downtime.
-    """
-    keys = [Fernet(settings.fernet_key.encode())]
-    if settings.fernet_key_previous:
-        keys.append(Fernet(settings.fernet_key_previous.encode()))
-    return MultiFernet(keys)
-
-
-_fernet = _get_fernet()
-
-
-def encrypt_pii(value: Optional[str]) -> Optional[str]:
-    """Encrypt a PII string with Fernet symmetric encryption."""
-    if value is None:
-        return None
-    return _fernet.encrypt(value.encode()).decode()
-
-
-def decrypt_pii(value: Optional[str]) -> Optional[str]:
-    """Decrypt a Fernet-encrypted PII string."""
-    if value is None:
-        return None
-    try:
-        return _fernet.decrypt(value.encode()).decode()
-    except Exception:
-        logger.error("[BRANDSCALE] PII decryption failed — data may be corrupt.")
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -103,8 +65,8 @@ async def list_leads(
     project_id: uuid.UUID,
     page: int = 1,
     page_size: int = 50,
-    tier_filter: Optional[ScoreTier] = None,
-    sector_filter: Optional[str] = None,
+    tier_filter: ScoreTier | None = None,
+    sector_filter: str | None = None,
 ) -> tuple[list[Lead], int]:
     """Return paginated leads for a project with optional filters."""
     base_query = select(Lead).where(Lead.project_id == project_id)
@@ -125,17 +87,13 @@ async def list_leads(
     return list(result.scalars().all()), total
 
 
-async def get_lead(
-    db: AsyncSession, lead_id: uuid.UUID
-) -> Optional[Lead]:
+async def get_lead(db: AsyncSession, lead_id: uuid.UUID) -> Lead | None:
     """Fetch a single lead by ID."""
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
     return result.scalar_one_or_none()
 
 
-async def update_lead(
-    db: AsyncSession, lead: Lead, data: LeadUpdate
-) -> Lead:
+async def update_lead(db: AsyncSession, lead: Lead, data: LeadUpdate) -> Lead:
     """Apply partial updates to a lead, encrypting PII fields."""
     update_data = data.model_dump(exclude_unset=True)
 
@@ -180,7 +138,7 @@ async def update_lead_score(
     """
     lead.score = score
     lead.score_tier = tier
-    lead.score_updated_at = datetime.now(timezone.utc)
+    lead.score_updated_at = datetime.now(UTC)
     await db.flush()
     await db.refresh(lead)
     return lead
@@ -247,7 +205,11 @@ async def import_leads_from_csv(
             continue
 
         opt_in_raw = (row.get("opt_in") or "").strip().lower()
-        opt_in = default_opt_in if not opt_in_raw else opt_in_raw in ("1", "true", "yes", "oui")
+        opt_in = (
+            default_opt_in
+            if not opt_in_raw
+            else opt_in_raw in ("1", "true", "yes", "oui")
+        )
 
         lead = Lead(
             project_id=project_id,
@@ -266,7 +228,9 @@ async def import_leads_from_csv(
     await db.flush()
     logger.info(
         "[BRANDSCALE] CSV import | project={} imported={} skipped={}",
-        project_id, imported, skipped,
+        project_id,
+        imported,
+        skipped,
     )
     return LeadImportResponse(
         imported=imported,

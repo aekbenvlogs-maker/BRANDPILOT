@@ -16,7 +16,12 @@ from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from microservices.bs_scoring.service import classify_tier, explain_score, rank_leads, score_lead
+from microservices.bs_scoring.service import (
+    classify_tier,
+    explain_score,
+    rank_leads,
+    score_lead,
+)
 
 router = APIRouter(prefix="/bs-scoring", tags=["bs-scoring"])
 
@@ -70,9 +75,13 @@ async def post_score_lead(payload: ScoreRequest) -> ScoreResponse:
     try:
         s = score_lead(payload.lead)
         tier = classify_tier(s)
-        return ScoreResponse(lead_id=str(payload.lead.get("id", "")), score=s, tier=tier)
+        return ScoreResponse(
+            lead_id=str(payload.lead.get("id", "")), score=s, tier=tier
+        )
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
 
 @router.post(
@@ -93,7 +102,9 @@ async def post_rank_leads(payload: RankRequest) -> list[dict[str, Any]]:
     try:
         return rank_leads(payload.leads)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
 
 @router.post(
@@ -116,4 +127,6 @@ async def post_explain_score(payload: ScoreRequest) -> ExplainResponse:
         result = explain_score(payload.lead)
         return ExplainResponse(**result)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )

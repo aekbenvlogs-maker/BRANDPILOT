@@ -10,24 +10,22 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel, Field
+import uuid
 
 from database.models_orm import ContentType
+from pydantic import BaseModel, Field
 
 
 class ContentGenerateRequest(BaseModel):
     """Request body to trigger AI content generation."""
 
     campaign_id: uuid.UUID
-    lead_id: Optional[uuid.UUID] = None
+    lead_id: uuid.UUID | None = None
     content_type: ContentType
     tone: str = Field(default="professional", max_length=64)
-    platform: Optional[str] = Field(default=None, max_length=64)
-    custom_instructions: Optional[str] = Field(default=None, max_length=512)
+    platform: str | None = Field(default=None, max_length=64)
+    custom_instructions: str | None = Field(default=None, max_length=512)
     language: str = Field(default="fr", max_length=10)
 
 
@@ -36,12 +34,12 @@ class ContentResponse(BaseModel):
 
     id: uuid.UUID
     campaign_id: uuid.UUID
-    lead_id: Optional[uuid.UUID] = None
+    lead_id: uuid.UUID | None = None
     content_type: ContentType
-    body_text: Optional[str] = None
-    image_url: Optional[str] = None
-    video_url: Optional[str] = None
-    prompt_used: Optional[str] = None
+    body_text: str | None = None
+    image_url: str | None = None
+    video_url: str | None = None
+    prompt_used: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -59,10 +57,10 @@ class ContentGenerateResponse(BaseModel):
 
     content_id: uuid.UUID
     content_type: ContentType
-    body_text: Optional[str] = None
-    image_url: Optional[str] = None
-    tokens_used: Optional[int] = None
-    cost_usd: Optional[float] = None
+    body_text: str | None = None
+    image_url: str | None = None
+    tokens_used: int | None = None
+    cost_usd: float | None = None
     generated_at: datetime
     from_fallback: bool = Field(
         default=False,

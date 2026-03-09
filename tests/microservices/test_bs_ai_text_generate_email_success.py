@@ -29,12 +29,16 @@ async def test_generate_email_returns_subject_and_body():
         mock_client.return_value.chat.completions.create = AsyncMock(return_value=response)
 
         result = await generate_email_content(
-            lead_data={"first_name": "Alice", "company": "Acme", "sector": "saas"},
-            campaign_data={"name": "Q1 Outreach", "tone": "friendly"},
+            None,
+            "00000000-0000-0000-0000-000000000001",
+            language="fr",
+            sector="saas",
+            company="Acme",
         )
 
-    assert isinstance(result, str)
-    assert len(result) > 10
+    assert isinstance(result, dict)
+    assert isinstance(result["text"], str)
+    assert len(result["text"]) > 10
 
 
 @pytest.mark.asyncio
@@ -59,9 +63,10 @@ async def test_generate_email_falls_back_gracefully():
         )
 
         result = await generate_email_content(
-            lead_data={"first_name": "Bob"},
-            campaign_data={"name": "Test"},
+            None,
+            "00000000-0000-0000-0000-000000000002",
         )
 
-    assert isinstance(result, str)
-    assert len(result) > 0
+    assert isinstance(result, dict)
+    assert isinstance(result["text"], str)
+    assert len(result["text"]) > 0

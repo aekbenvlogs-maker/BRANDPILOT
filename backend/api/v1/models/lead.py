@@ -10,24 +10,22 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel, EmailStr, Field, field_validator
+import uuid
 
 from database.models_orm import ScoreTier
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class LeadBase(BaseModel):
     """Shared fields for Lead create/update."""
 
     email: EmailStr
-    first_name: Optional[str] = Field(default=None, max_length=128)
-    last_name: Optional[str] = Field(default=None, max_length=128)
-    company: Optional[str] = Field(default=None, max_length=256)
-    sector: Optional[str] = Field(default=None, max_length=128)
-    source: Optional[str] = Field(default=None, max_length=128)
+    first_name: str | None = Field(default=None, max_length=128)
+    last_name: str | None = Field(default=None, max_length=128)
+    company: str | None = Field(default=None, max_length=256)
+    sector: str | None = Field(default=None, max_length=128)
+    source: str | None = Field(default=None, max_length=128)
 
 
 class LeadCreate(LeadBase):
@@ -35,8 +33,8 @@ class LeadCreate(LeadBase):
 
     project_id: uuid.UUID
     opt_in: bool = Field(default=False, description="RGPD explicit consent")
-    consent_date: Optional[datetime] = None
-    consent_source: Optional[str] = Field(default=None, max_length=128)
+    consent_date: datetime | None = None
+    consent_source: str | None = Field(default=None, max_length=128)
 
     @field_validator("opt_in")
     @classmethod
@@ -49,12 +47,12 @@ class LeadCreate(LeadBase):
 class LeadUpdate(BaseModel):
     """Request body for updating a lead (all optional)."""
 
-    email: Optional[EmailStr] = None
-    first_name: Optional[str] = Field(default=None, max_length=128)
-    last_name: Optional[str] = Field(default=None, max_length=128)
-    company: Optional[str] = Field(default=None, max_length=256)
-    sector: Optional[str] = Field(default=None, max_length=128)
-    opt_in: Optional[bool] = None
+    email: EmailStr | None = None
+    first_name: str | None = Field(default=None, max_length=128)
+    last_name: str | None = Field(default=None, max_length=128)
+    company: str | None = Field(default=None, max_length=256)
+    sector: str | None = Field(default=None, max_length=128)
+    opt_in: bool | None = None
 
 
 class LeadResponse(LeadBase):
@@ -64,9 +62,9 @@ class LeadResponse(LeadBase):
     project_id: uuid.UUID
     score: int
     score_tier: ScoreTier
-    score_updated_at: Optional[datetime] = None
+    score_updated_at: datetime | None = None
     opt_in: bool
-    consent_date: Optional[datetime] = None
+    consent_date: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

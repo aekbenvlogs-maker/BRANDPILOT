@@ -17,15 +17,19 @@ const SERVICES = [
   { label: "Scoring", url: "/bs-scoring/health" },
 ];
 
-function StatusDot({ status }: { status: "ok" | "error" | "degraded" | undefined }) {
+function StatusDot({
+  status,
+}: {
+  status: "ok" | "error" | "degraded" | undefined;
+}) {
   const color =
     status === "ok"
       ? "bg-green-500"
       : status === "degraded"
-      ? "bg-yellow-400"
-      : status === "error"
-      ? "bg-red-500"
-      : "bg-neutral-300 animate-pulse";
+        ? "bg-yellow-400"
+        : status === "error"
+          ? "bg-red-500"
+          : "bg-neutral-300 animate-pulse";
   return <span className={`inline-block h-2.5 w-2.5 rounded-full ${color}`} />;
 }
 
@@ -33,7 +37,7 @@ function ServiceChip({ label, url }: { label: string; url: string }) {
   const { data, error } = useSWR<ServiceStatus>(
     url,
     (u: string) => apiFetch(u),
-    { refreshInterval: 30_000 }
+    { refreshInterval: 30_000 },
   );
   const status = error ? "error" : data?.status;
   return (

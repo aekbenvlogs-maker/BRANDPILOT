@@ -10,13 +10,11 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel, EmailStr, Field, field_validator
+import uuid
 
 from database.models_orm import UserRole
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class UserBase(BaseModel):
@@ -30,8 +28,8 @@ class UserCreate(UserBase):
     """Request body for creating a new user."""
 
     password: str = Field(min_length=8, max_length=128, description="Raw password")
-    consent_date: Optional[datetime] = Field(default=None)
-    consent_source: Optional[str] = Field(default=None, max_length=128)
+    consent_date: datetime | None = Field(default=None)
+    consent_source: str | None = Field(default=None, max_length=128)
 
     @field_validator("password")
     @classmethod
@@ -47,9 +45,9 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     """Request body for updating a user (all fields optional)."""
 
-    email: Optional[EmailStr] = None
-    role: Optional[UserRole] = None
-    is_active: Optional[bool] = None
+    email: EmailStr | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
 
 
 class UserResponse(UserBase):
@@ -58,7 +56,7 @@ class UserResponse(UserBase):
     id: uuid.UUID
     is_active: bool
     created_at: datetime
-    last_login_at: Optional[datetime] = None
+    last_login_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

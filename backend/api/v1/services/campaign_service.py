@@ -10,21 +10,18 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
 
+from database.models_orm import Campaign, CampaignStatus
 from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.models.campaign import CampaignCreate, CampaignUpdate
-from database.models_orm import Campaign, CampaignStatus
 
 
-async def create_campaign(
-    db: AsyncSession, data: CampaignCreate
-) -> Campaign:
+async def create_campaign(db: AsyncSession, data: CampaignCreate) -> Campaign:
     """
     Create a new campaign in draft status.
 
@@ -46,7 +43,8 @@ async def create_campaign(
     await db.refresh(campaign)
     logger.info(
         "[BRANDSCALE] Campaign created | id={} name={}",
-        campaign.id, campaign.name,
+        campaign.id,
+        campaign.name,
     )
     return campaign
 
@@ -56,7 +54,7 @@ async def list_campaigns(
     project_id: uuid.UUID,
     page: int = 1,
     page_size: int = 20,
-    status_filter: Optional[CampaignStatus] = None,
+    status_filter: CampaignStatus | None = None,
 ) -> tuple[list[Campaign], int]:
     """
     Return paginated campaigns for a project.
@@ -87,13 +85,9 @@ async def list_campaigns(
     return list(result.scalars().all()), total
 
 
-async def get_campaign(
-    db: AsyncSession, campaign_id: uuid.UUID
-) -> Optional[Campaign]:
+async def get_campaign(db: AsyncSession, campaign_id: uuid.UUID) -> Campaign | None:
     """Fetch a single campaign by ID."""
-    result = await db.execute(
-        select(Campaign).where(Campaign.id == campaign_id)
-    )
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     return result.scalar_one_or_none()
 
 
@@ -110,9 +104,7 @@ async def update_campaign(
     return campaign
 
 
-async def launch_campaign(
-    db: AsyncSession, campaign: Campaign
-) -> Campaign:
+async def launch_campaign(db: AsyncSession, campaign: Campaign) -> Campaign:
     """
     Mark campaign as active and record launch timestamp.
 
@@ -124,7 +116,7 @@ async def launch_campaign(
         Updated Campaign with status=active.
     """
     campaign.status = CampaignStatus.active
-    campaign.launched_at = datetime.now(timezone.utc)
+    campaign.launched_at = datetime.now(UTC)
     await db.flush()
     await db.refresh(campaign)
     logger.info("[BRANDSCALE] Campaign launched | id={}", campaign.id)

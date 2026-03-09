@@ -10,11 +10,11 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
 import enum
 import uuid
-from datetime import date, datetime
-from typing import Optional
 
+from database.connection import Base
 from sqlalchemy import (
     Boolean,
     Date,
@@ -32,13 +32,11 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from database.connection import Base
-
 
 # ---------------------------------------------------------------------------
 # Enumerations (mirrors schema.sql ENUMs)
 # ---------------------------------------------------------------------------
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     """Roles available for BRANDSCALE users."""
 
     admin = "admin"
@@ -46,7 +44,7 @@ class UserRole(str, enum.Enum):
     viewer = "viewer"
 
 
-class CampaignStatus(str, enum.Enum):
+class CampaignStatus(enum.StrEnum):
     """Lifecycle stages of a campaign."""
 
     draft = "draft"
@@ -55,7 +53,7 @@ class CampaignStatus(str, enum.Enum):
     completed = "completed"
 
 
-class CampaignChannel(str, enum.Enum):
+class CampaignChannel(enum.StrEnum):
     """Distribution channel for a campaign."""
 
     email = "email"
@@ -65,7 +63,7 @@ class CampaignChannel(str, enum.Enum):
     multi = "multi"
 
 
-class ContentType(str, enum.Enum):
+class ContentType(enum.StrEnum):
     """Type of AI-generated content."""
 
     post = "post"
@@ -75,7 +73,7 @@ class ContentType(str, enum.Enum):
     video_script = "video_script"
 
 
-class ScoreTier(str, enum.Enum):
+class ScoreTier(enum.StrEnum):
     """Lead quality tier derived from numeric score."""
 
     hot = "hot"
@@ -83,7 +81,7 @@ class ScoreTier(str, enum.Enum):
     cold = "cold"
 
 
-class WorkflowStepStatus(str, enum.Enum):
+class WorkflowStepStatus(enum.StrEnum):
     """State of a workflow job step."""
 
     pending = "pending"
@@ -104,7 +102,9 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
+    email: Mapped[str] = mapped_column(
+        String(320), nullable=False, unique=True, index=True
+    )
     hashed_password: Mapped[str] = mapped_column(String(256), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole), nullable=False, default=UserRole.manager
@@ -116,10 +116,10 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
-    last_login_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(nullable=True)
     # RGPD
-    consent_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    consent_source: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    consent_date: Mapped[datetime | None] = mapped_column(nullable=True)
+    consent_source: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Relationships
     projects: Mapped[list[Project]] = relationship(
@@ -148,7 +148,7 @@ class Project(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(256), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now()
@@ -207,13 +207,15 @@ class Campaign(Base):
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
-    launched_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    ai_budget_usd: Mapped[Optional[float]] = mapped_column(
+    launched_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    ai_budget_usd: Mapped[float | None] = mapped_column(
         Numeric(10, 2), nullable=True, comment="AI budget cap in USD for this campaign"
     )
     ai_spent_usd: Mapped[float] = mapped_column(
-        Numeric(10, 4), nullable=False, default=0.0,
-        comment="AI cost consumed so far in USD"
+        Numeric(10, 4),
+        nullable=False,
+        default=0.0,
+        comment="AI cost consumed so far in USD",
     )
 
     # Relationships
@@ -258,11 +260,11 @@ class Lead(Base):
     )
     # PII — stored encrypted via Fernet in service layer
     email: Mapped[str] = mapped_column(Text, nullable=False)
-    first_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    last_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    company: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
-    sector: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    company_size: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    first_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    company: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    sector: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    company_size: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Engagement counters — updated by bs_email open/click tracking
     email_opens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     email_clicks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -272,13 +274,13 @@ class Lead(Base):
     score_tier: Mapped[ScoreTier] = mapped_column(
         Enum(ScoreTier), nullable=False, default=ScoreTier.cold
     )
-    score_updated_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    score_updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
     # RGPD
     opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    consent_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    consent_source: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    consent_date: Mapped[datetime | None] = mapped_column(nullable=True)
+    consent_source: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Metadata
-    source: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now()
     )
@@ -319,25 +321,23 @@ class Content(Base):
         ForeignKey("campaigns.id", ondelete="CASCADE"),
         nullable=False,
     )
-    lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    lead_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("leads.id", ondelete="SET NULL"),
         nullable=True,
     )
-    content_type: Mapped[ContentType] = mapped_column(
-        Enum(ContentType), nullable=False
-    )
-    body_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    video_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    prompt_used: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    content_type: Mapped[ContentType] = mapped_column(Enum(ContentType), nullable=False)
+    body_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    video_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_used: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now()
     )
 
     # Relationships
     campaign: Mapped[Campaign] = relationship("Campaign", back_populates="contents")
-    lead: Mapped[Optional[Lead]] = relationship("Lead", back_populates="contents")
+    lead: Mapped[Lead | None] = relationship("Lead", back_populates="contents")
 
     def __repr__(self) -> str:
         return f"<Content id={self.id} type={self.content_type}>"
@@ -366,9 +366,9 @@ class Email(Base):
     )
     subject: Mapped[str] = mapped_column(String(998), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    sent_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    opened_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    clicked_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    opened_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    clicked_at: Mapped[datetime | None] = mapped_column(nullable=True)
     bounced: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     unsubscribed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -404,7 +404,9 @@ class Analytics(Base):
     open_rate: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0.0)
     ctr: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0.0)
     conversions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    ai_cost_usd: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False, default=0.0)
+    ai_cost_usd: Mapped[float] = mapped_column(
+        Numeric(10, 4), nullable=False, default=0.0
+    )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
@@ -447,8 +449,10 @@ class ScoringWeights(Base):
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
     updated_by: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="system",
-        comment="'system' (feedback loop) or 'manual'"
+        String(32),
+        nullable=False,
+        default="system",
+        comment="'system' (feedback loop) or 'manual'",
     )
 
     # Relationships
@@ -470,8 +474,9 @@ class PromptTemplate(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     content_type: Mapped[str] = mapped_column(
-        String(32), nullable=False,
-        comment="post / email / ad / newsletter / video_script"
+        String(32),
+        nullable=False,
+        comment="post / email / ad / newsletter / video_script",
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -500,29 +505,29 @@ class WorkflowJob(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    campaign_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("campaigns.id", ondelete="SET NULL"),
         nullable=True,
     )
     job_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    current_step: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    current_step: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[WorkflowStepStatus] = mapped_column(
         Enum(WorkflowStepStatus),
         nullable=False,
         default=WorkflowStepStatus.pending,
     )
-    payload: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)  # type: ignore[type-arg]
-    result: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)  # type: ignore[type-arg]
-    error_msg: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    started_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # type: ignore[type-arg]
+    result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # type: ignore[type-arg]
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now()
     )
 
     # Relationships
-    campaign: Mapped[Optional[Campaign]] = relationship(
+    campaign: Mapped[Campaign | None] = relationship(
         "Campaign", back_populates="workflow_jobs"
     )
 

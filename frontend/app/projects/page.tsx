@@ -44,7 +44,7 @@ function ProjectCard({
 export default function ProjectsPage() {
   const { data, isLoading } = useSWR<{ items: Project[] }>(
     "/api/v1/projects",
-    (url: string) => apiFetch(url)
+    (url: string) => apiFetch(url),
   );
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -100,7 +100,11 @@ export default function ProjectsPage() {
 
       <section className="flex flex-col gap-4">
         {data?.items?.map((project) => (
-          <ProjectCard key={project.id} project={project} onDelete={handleDelete} />
+          <ProjectCard
+            key={project.id}
+            project={project}
+            onDelete={handleDelete}
+          />
         ))}
         {!isLoading && !data?.items?.length && (
           <p className="text-sm text-neutral-400">No projects yet.</p>

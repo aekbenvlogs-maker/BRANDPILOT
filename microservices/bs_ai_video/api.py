@@ -62,13 +62,18 @@ async def post_generate_script(payload: ScriptRequest) -> ScriptResponse:
     Returns:
         Generated video script.
     """
-    logger.info("[bs_ai_video] /generate/script | campaign={}", payload.campaign_data.get("name"))
+    logger.info(
+        "[bs_ai_video] /generate/script | campaign={}",
+        payload.campaign_data.get("name"),
+    )
     try:
         script = await generate_video_script(payload.lead_data, payload.campaign_data)
         return ScriptResponse(script=script)
     except Exception as exc:
         logger.error("[bs_ai_video] Script generation failed | {}", str(exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
 
 @router.post(
@@ -93,4 +98,6 @@ async def post_render_video(payload: RenderRequest) -> RenderResponse:
         return RenderResponse(video_url=url, template=payload.template)
     except Exception as exc:
         logger.error("[bs_ai_video] Render failed | {}", str(exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )

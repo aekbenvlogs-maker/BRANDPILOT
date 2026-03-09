@@ -25,14 +25,14 @@ AlertLevel = Literal["info", "warning", "critical"]
 
 # Slack colour codes per level
 _SLACK_COLORS: dict[str, str] = {
-    "info":     "#36a64f",   # green
-    "warning":  "#ff9f00",   # amber
-    "critical": "#d00000",   # red
+    "info": "#36a64f",  # green
+    "warning": "#ff9f00",  # amber
+    "critical": "#d00000",  # red
 }
 
 _LEVEL_EMOJI: dict[str, str] = {
-    "info":     "ℹ️",
-    "warning":  "⚠️",
+    "info": "ℹ️",
+    "warning": "⚠️",
     "critical": "🚨",
 }
 
@@ -68,7 +68,9 @@ async def send_slack_alert(message: str, level: AlertLevel = "warning") -> bool:
         logger.info("[alerting] Slack alert sent | level={}", level)
         return True
     except Exception as exc:
-        logger.error("[alerting] Slack alert failed | level={} error={}", level, str(exc))
+        logger.error(
+            "[alerting] Slack alert failed | level={} error={}", level, str(exc)
+        )
         return False
 
 
@@ -105,10 +107,14 @@ async def send_email_alert(message: str, level: AlertLevel = "warning") -> bool:
             if settings.smtp_user and settings.smtp_password:
                 await server.login(settings.smtp_user, settings.smtp_password)
             await server.send_message(msg)
-        logger.info("[alerting] Email alert sent | level={} to={}", level, settings.alert_email)
+        logger.info(
+            "[alerting] Email alert sent | level={} to={}", level, settings.alert_email
+        )
         return True
     except Exception as exc:
-        logger.error("[alerting] Email alert failed | level={} error={}", level, str(exc))
+        logger.error(
+            "[alerting] Email alert failed | level={} error={}", level, str(exc)
+        )
         return False
 
 

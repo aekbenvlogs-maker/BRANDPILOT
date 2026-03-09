@@ -34,10 +34,11 @@ async def test_full_fallback_chain_returns_template():
         )
         mock_tpl.return_value = "🚀 BRANDSCALE — Scale your brand with AI. Try it free."
 
-        result = await generate_ad_copy("SaaS", "professional")
+        result = await generate_ad_copy(None, sector="SaaS")
 
-    assert isinstance(result, str)
-    assert len(result) > 0
+    assert isinstance(result, dict)
+    assert isinstance(result["text"], str)
+    assert len(result["text"]) > 0
 
 
 @pytest.mark.asyncio
@@ -48,12 +49,12 @@ async def test_cache_hit_skips_all_api_calls():
          patch("microservices.bs_ai_text.service.get_openai_client") as mock_client:
 
         redis_instance = AsyncMock()
-        redis_instance.get = AsyncMock(return_value=b"Cached post text")
+        redis_instance.get = AsyncMock(return_value="Cached post text")
         redis_instance.aclose = AsyncMock()
         mock_redis.from_url.return_value = redis_instance
 
-        result = await generate_post("SaaS", "direct")
+        result = await generate_post(None, "direct", sector="SaaS")
 
         mock_client.assert_not_called()
 
-    assert result == "Cached post text"
+    assert result["text"] == "Cached post text"

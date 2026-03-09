@@ -33,7 +33,9 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(bind=True, name="bs_scoring.score_lead", max_retries=3, default_retry_delay=10)
+@celery_app.task(
+    bind=True, name="bs_scoring.score_lead", max_retries=3, default_retry_delay=10
+)
 def task_score_lead(self: Any, lead: dict[str, Any]) -> dict[str, Any]:
     """
     Celery task — score a single lead dict.
@@ -56,7 +58,9 @@ def task_score_lead(self: Any, lead: dict[str, Any]) -> dict[str, Any]:
         raise self.retry(exc=exc)
 
 
-@celery_app.task(bind=True, name="bs_scoring.rank_leads", max_retries=3, default_retry_delay=10)
+@celery_app.task(
+    bind=True, name="bs_scoring.rank_leads", max_retries=3, default_retry_delay=10
+)
 def task_rank_leads(self: Any, leads: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Celery task — score and rank a list of leads.

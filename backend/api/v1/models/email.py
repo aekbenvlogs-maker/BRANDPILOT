@@ -10,9 +10,8 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Optional
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -24,9 +23,9 @@ class EmailResponse(BaseModel):
     campaign_id: uuid.UUID
     lead_id: uuid.UUID
     subject: str
-    sent_at: Optional[datetime] = None
-    opened_at: Optional[datetime] = None
-    clicked_at: Optional[datetime] = None
+    sent_at: datetime | None = None
+    opened_at: datetime | None = None
+    clicked_at: datetime | None = None
     bounced: bool
     unsubscribed: bool
     created_at: datetime
@@ -39,5 +38,7 @@ class EmailTrackingEvent(BaseModel):
 
     email_id: uuid.UUID
     event_type: str = Field(description="open | click | bounce | unsubscribe")
-    link_url: Optional[str] = Field(default=None, description="Clicked URL if event_type=click")
-    timestamp: Optional[datetime] = None
+    link_url: str | None = Field(
+        default=None, description="Clicked URL if event_type=click"
+    )
+    timestamp: datetime | None = None

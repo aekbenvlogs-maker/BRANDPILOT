@@ -10,9 +10,11 @@
 
 from __future__ import annotations
 
+from typing import Annotated
 import uuid
-from typing import Annotated, Optional
 
+from database.connection import get_db_session
+from database.models_orm import ScoreTier
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,8 +34,6 @@ from backend.api.v1.models.lead import (
     LeadUpdate,
 )
 from backend.middleware.auth import get_current_user_id
-from database.connection import get_db_session
-from database.models_orm import ScoreTier
 
 router = APIRouter()
 
@@ -43,8 +43,8 @@ async def list_leads(
     project_id: uuid.UUID,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
-    tier: Optional[ScoreTier] = None,
-    sector: Optional[str] = None,
+    tier: ScoreTier | None = None,
+    sector: str | None = None,
     db: AsyncSession = Depends(get_db_session),
     _: uuid.UUID = Depends(get_current_user_id),
 ) -> LeadListResponse:
@@ -93,7 +93,9 @@ async def delete_lead(
     return await handle_delete_lead(db, lead_id)
 
 
-@router.post("/import", response_model=LeadImportResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/import", response_model=LeadImportResponse, status_code=status.HTTP_200_OK
+)
 async def import_leads_csv(
     project_id: uuid.UUID,
     default_opt_in: bool = False,

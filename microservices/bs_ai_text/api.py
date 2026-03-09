@@ -10,8 +10,8 @@
 
 from __future__ import annotations
 
+from typing import Any
 import uuid
-from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/bs_ai_text", tags=["bs_ai_text"])
 class GeneratePostRequest(BaseModel):
     """Request body for post generation."""
 
-    lead_id: Optional[uuid.UUID] = None
+    lead_id: uuid.UUID | None = None
     tone: str = "professional"
     platform: str = "linkedin"
     language: str = "fr"
@@ -42,7 +42,7 @@ class GeneratePostRequest(BaseModel):
 class GenerateEmailRequest(BaseModel):
     """Request body for email generation."""
 
-    lead_id: Optional[uuid.UUID] = None
+    lead_id: uuid.UUID | None = None
     campaign_id: uuid.UUID
     language: str = "fr"
 
@@ -50,7 +50,7 @@ class GenerateEmailRequest(BaseModel):
 class GenerateAdRequest(BaseModel):
     """Request body for ad copy generation."""
 
-    lead_id: Optional[uuid.UUID] = None
+    lead_id: uuid.UUID | None = None
     tone: str = "persuasive"
     language: str = "fr"
 
@@ -65,7 +65,7 @@ class GenerateNewsletterRequest(BaseModel):
 class GenerateVideoScriptRequest(BaseModel):
     """Request body for video script generation."""
 
-    lead_id: Optional[uuid.UUID] = None
+    lead_id: uuid.UUID | None = None
     campaign_id: uuid.UUID
     language: str = "fr"
 
@@ -83,7 +83,9 @@ async def health() -> dict[str, str]:
 async def api_generate_post(body: GeneratePostRequest) -> dict[str, Any]:
     """Generate a social media post."""
     try:
-        return await generate_post(body.lead_id, body.tone, body.platform, body.language)
+        return await generate_post(
+            body.lead_id, body.tone, body.platform, body.language
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -95,7 +97,9 @@ async def api_generate_post(body: GeneratePostRequest) -> dict[str, Any]:
 async def api_generate_email(body: GenerateEmailRequest) -> dict[str, Any]:
     """Generate a personalised marketing email."""
     try:
-        return await generate_email_content(body.lead_id, body.campaign_id, body.language)
+        return await generate_email_content(
+            body.lead_id, body.campaign_id, body.language
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -131,7 +135,9 @@ async def api_generate_newsletter(body: GenerateNewsletterRequest) -> dict[str, 
 async def api_generate_video_script(body: GenerateVideoScriptRequest) -> dict[str, Any]:
     """Generate a video marketing script."""
     try:
-        return await generate_video_script(body.lead_id, body.campaign_id, body.language)
+        return await generate_video_script(
+            body.lead_id, body.campaign_id, body.language
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

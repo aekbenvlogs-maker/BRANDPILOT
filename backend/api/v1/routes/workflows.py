@@ -10,9 +10,10 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
+import uuid
 
+from database.connection import get_db_session
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +22,6 @@ from backend.api.v1.controllers.workflow_controller import (
     handle_run_workflow,
 )
 from backend.middleware.auth import get_current_user_id
-from database.connection import get_db_session
 
 router = APIRouter()
 

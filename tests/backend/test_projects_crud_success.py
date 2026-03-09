@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from backend.main import create_app
 
@@ -18,7 +18,7 @@ def app():
 
 @pytest.mark.asyncio
 async def test_create_project_returns_201(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.post(
             "/api/v1/projects",
             json={"name": "Test Project", "description": "Unit test"},
@@ -29,7 +29,7 @@ async def test_create_project_returns_201(app):
 
 @pytest.mark.asyncio
 async def test_list_projects_returns_200(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get(
             "/api/v1/projects",
             headers={"Authorization": "Bearer test-token"},
@@ -39,7 +39,7 @@ async def test_list_projects_returns_200(app):
 
 @pytest.mark.asyncio
 async def test_list_projects_response_shape(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get(
             "/api/v1/projects",
             headers={"Authorization": "Bearer test-token"},

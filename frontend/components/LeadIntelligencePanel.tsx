@@ -27,7 +27,9 @@ function LeadRow({ lead }: { lead: Lead }) {
       <td className="py-3 pr-4 font-medium text-neutral-900 dark:text-white">
         {lead.company ?? "—"}
       </td>
-      <td className="py-3 pr-4 text-sm text-neutral-500">{lead.sector ?? "—"}</td>
+      <td className="py-3 pr-4 text-sm text-neutral-500">
+        {lead.sector ?? "—"}
+      </td>
       <td className="py-3 pr-4 text-sm">
         {lead.score != null ? (
           <span className="font-semibold">{lead.score}</span>
@@ -46,7 +48,9 @@ function LeadRow({ lead }: { lead: Lead }) {
           "—"
         )}
       </td>
-      <td className="py-3 pr-4 text-sm text-neutral-500">{lead.source ?? "—"}</td>
+      <td className="py-3 pr-4 text-sm text-neutral-500">
+        {lead.source ?? "—"}
+      </td>
       <td className="py-3 text-xs">
         {lead.opt_in ? (
           <span className="text-green-600">✓ Opted in</span>
@@ -91,8 +95,16 @@ export function LeadIntelligencePanel() {
       <div className="flex gap-3">
         {[
           { label: "🔥 Hot", count: hot, color: "border-red-200 bg-red-50" },
-          { label: "🌤 Warm", count: warm, color: "border-orange-200 bg-orange-50" },
-          { label: "❄️ Cold", count: cold, color: "border-blue-200 bg-blue-50" },
+          {
+            label: "🌤 Warm",
+            count: warm,
+            color: "border-orange-200 bg-orange-50",
+          },
+          {
+            label: "❄️ Cold",
+            count: cold,
+            color: "border-blue-200 bg-blue-50",
+          },
         ].map((t) => (
           <div
             key={t.label}
@@ -137,7 +149,9 @@ export function LeadIntelligencePanel() {
             </tr>
           </thead>
           <tbody>
-            {leads?.map((l) => <LeadRow key={l.id} lead={l} />)}
+            {leads?.map((l) => (
+              <LeadRow key={l.id} lead={l} />
+            ))}
           </tbody>
         </table>
         {!isLoading && !leads?.length && (

@@ -24,7 +24,7 @@ interface CampaignAnalytics {
 export function AnalyticsCharts() {
   const { data, isLoading } = useSWR<{ items: CampaignAnalytics[] }>(
     "/api/v1/analytics",
-    (url: string) => apiFetch(url)
+    (url: string) => apiFetch(url),
   );
 
   if (isLoading) {
@@ -39,13 +39,16 @@ export function AnalyticsCharts() {
     name: item.campaign_name,
     "Open rate": parseFloat((item.open_rate * 100).toFixed(1)),
     "Click rate": parseFloat((item.click_rate * 100).toFixed(1)),
-    "Conversion": parseFloat((item.conversion_rate * 100).toFixed(2)),
+    Conversion: parseFloat((item.conversion_rate * 100).toFixed(2)),
   }));
 
   return (
     <div className="flex flex-col gap-6">
       <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <BarChart
+          data={chartData}
+          margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+        >
           <XAxis
             dataKey="name"
             tick={{ fontSize: 11 }}
@@ -85,9 +88,15 @@ export function AnalyticsCharts() {
                 <td className="py-2 pr-6 font-medium text-neutral-900 dark:text-white">
                   {item.campaign_name}
                 </td>
-                <td className="py-2 pr-6 text-blue-600">{formatPercent(item.open_rate)}</td>
-                <td className="py-2 pr-6 text-emerald-600">{formatPercent(item.click_rate)}</td>
-                <td className="py-2 text-amber-600">{formatPercent(item.conversion_rate)}</td>
+                <td className="py-2 pr-6 text-blue-600">
+                  {formatPercent(item.open_rate)}
+                </td>
+                <td className="py-2 pr-6 text-emerald-600">
+                  {formatPercent(item.click_rate)}
+                </td>
+                <td className="py-2 text-amber-600">
+                  {formatPercent(item.conversion_rate)}
+                </td>
               </tr>
             ))}
           </tbody>

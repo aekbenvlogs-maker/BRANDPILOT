@@ -47,7 +47,7 @@ export function AutomationMonitor() {
   const { data, isLoading, mutate } = useSWR<{ items: WorkflowJob[] }>(
     "/api/v1/workflows",
     (url: string) => apiFetch(url),
-    { refreshInterval: 5_000 }
+    { refreshInterval: 5_000 },
   );
 
   return (
@@ -77,7 +77,9 @@ export function AutomationMonitor() {
             </tr>
           </thead>
           <tbody>
-            {data?.items?.map((job) => <JobRow key={job.id} job={job} />)}
+            {data?.items?.map((job) => (
+              <JobRow key={job.id} job={job} />
+            ))}
           </tbody>
         </table>
         {!isLoading && !data?.items?.length && (

@@ -10,9 +10,11 @@
 
 from __future__ import annotations
 
+from typing import Annotated
 import uuid
-from typing import Annotated, Optional
 
+from database.connection import get_db_session
+from database.models_orm import CampaignStatus
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,8 +34,6 @@ from backend.api.v1.models.campaign import (
     CampaignUpdate,
 )
 from backend.middleware.auth import get_current_user_id
-from database.connection import get_db_session
-from database.models_orm import CampaignStatus
 
 router = APIRouter()
 
@@ -43,7 +43,7 @@ async def list_campaigns(
     project_id: uuid.UUID,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
-    status_filter: Optional[CampaignStatus] = None,
+    status_filter: CampaignStatus | None = None,
     db: AsyncSession = Depends(get_db_session),
     _: uuid.UUID = Depends(get_current_user_id),
 ) -> CampaignListResponse:

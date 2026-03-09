@@ -11,14 +11,13 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
+from database.models_orm import Project
 from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.models.project import ProjectCreate, ProjectUpdate
-from database.models_orm import Project
 
 
 async def create_project(
@@ -43,7 +42,9 @@ async def create_project(
     db.add(project)
     await db.flush()
     await db.refresh(project)
-    logger.info("[BRANDSCALE] Project created | id={} name={}", project.id, project.name)
+    logger.info(
+        "[BRANDSCALE] Project created | id={} name={}", project.id, project.name
+    )
     return project
 
 
@@ -87,7 +88,7 @@ async def list_projects(
 
 async def get_project(
     db: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID
-) -> Optional[Project]:
+) -> Project | None:
     """
     Fetch a single project by ID, scoped to the user.
 

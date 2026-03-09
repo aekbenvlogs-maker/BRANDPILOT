@@ -12,17 +12,20 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_send_email_returns_false_when_not_found():
+    import uuid as _uuid
     from microservices.bs_email.service import send_email
+
+    missing_id = str(_uuid.uuid4())  # UUID valide mais absent en DB
 
     with patch("microservices.bs_email.service.db_session") as mock_ctx:
         session = AsyncMock()
         result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = None
+        result_mock.one_or_none.return_value = None  # JOIN ne trouve rien
         session.execute = AsyncMock(return_value=result_mock)
         mock_ctx.return_value.__aenter__ = AsyncMock(return_value=session)
         mock_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        result = await send_email("non-existent-id")
+        result = await send_email(missing_id)
 
     assert result is False
 
@@ -45,16 +48,10 @@ async def test_send_email_smtp_failure_returns_false():
     )
     fake_lead = Lead(id=_lead_id, email="encrypted-placeholder", opt_in=True)
 
-    call_count = 0
-
+    # Avec le JOIN, une seule requête retourne (Email, Lead) via one_or_none()
     def execute_side_effect(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
         mock_result = MagicMock()
-        if call_count == 1:
-            mock_result.scalar_one_or_none.return_value = fake_email
-        else:
-            mock_result.scalar_one_or_none.return_value = fake_lead
+        mock_result.one_or_none.return_value = (fake_email, fake_lead)
         return mock_result
 
     mock_smtp_instance = MagicMock()

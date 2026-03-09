@@ -10,21 +10,23 @@
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
+import uuid
+
+import re
 
 import aiosmtplib
+from database.connection import db_session
+from database.crypto import decrypt_pii
+from database.models_orm import Email, Lead
 from loguru import logger
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.v1.services.lead_service import decrypt_pii
 from configs.settings import get_settings
-from database.connection import db_session
-from database.models_orm import Email, Lead
 
 settings = get_settings()
 
@@ -36,11 +38,19 @@ def _build_unsubscribe_link(lead_id: str) -> str:
     return f"{_UNSUBSCRIBE_BASE}?lead_id={lead_id}"
 
 
-def _build_email_body(template_html: str, lead_data: dict[str, Any], unsubscribe_url: str) -> str:
-    """Inject lead context and mandatory unsubscribe link into an HTML template."""
-    body = template_html
-    for key, value in lead_data.items():
-        body = body.replace(f"{{{{{key}}}}}", str(value))
+def _build_email_body(
+    template_html: str, lead_data: dict[str, Any], unsubscribe_url: str
+) -> str:
+    """Inject lead context and mandatory unsubscribe link into an HTML template.
+
+    Uses a single re.sub pass instead of N str.replace calls — O(len(template))
+    regardless of the number of lead fields.
+    """
+    body = re.sub(
+        r"\{\{(\w+)\}\}",
+        lambda m: str(lead_data.get(m.group(1), m.group(0))),
+        template_html,
+    )
     unsubscribe_block = (
         f'<p style="font-size:10px;color:#888;">Click <a href="{unsubscribe_url}">here</a>'
         " to unsubscribe at any time.</p>"
@@ -71,21 +81,31 @@ async def create_sequence(
     created_ids: list[str] = []
 
     async def _create(s: AsyncSession) -> None:
+        records: list[Email] = []
         for lead in leads:
             if not lead.get("opt_in"):
                 logger.info("[bs_email] Skipping lead {} — no opt_in", lead.get("id"))
+                continue
+            try:
+                lead_uuid = uuid.UUID(str(lead["id"]))
+                camp_uuid = uuid.UUID(str(campaign_id))
+            except (ValueError, KeyError):
+                logger.warning("[bs_email] Invalid UUID — skipping lead {}", lead.get("id"))
                 continue
             unsubscribe_url = _build_unsubscribe_link(str(lead["id"]))
             body = _build_email_body(template_html, lead, unsubscribe_url)
             email_record = Email(
                 id=uuid.uuid4(),
-                campaign_id=uuid.UUID(str(campaign_id)),
-                lead_id=uuid.UUID(str(lead["id"])),
+                campaign_id=camp_uuid,
+                lead_id=lead_uuid,
                 subject=subject,
                 body=body,
             )
-            s.add(email_record)
+            records.append(email_record)
             created_ids.append(str(email_record.id))
+        if records:
+            s.add_all(records)
+            await s.flush()
         await s.commit()
 
     if session:
@@ -94,7 +114,11 @@ async def create_sequence(
         async with db_session() as s:
             await _create(s)
 
-    logger.info("[bs_email] Sequence created | {} emails | campaign={}", len(created_ids), campaign_id)
+    logger.info(
+        "[bs_email] Sequence created | {} emails | campaign={}",
+        len(created_ids),
+        campaign_id,
+    )
     return created_ids
 
 
@@ -108,17 +132,29 @@ async def send_email(email_id: str) -> bool:
     Returns:
         True on success, False on failure.
     """
+    # Cast early — avoids InvalidTextRepresentation on PostgreSQL/asyncpg.
+    try:
+        email_uuid = uuid.UUID(email_id)
+    except ValueError:
+        logger.warning("[bs_email] send_email — invalid UUID | id={}", email_id)
+        return False
+
     async with db_session() as session:
-        result = await session.execute(select(Email).where(Email.id == email_id))
-        email = result.scalar_one_or_none()
-        if not email:
+        # Single JOIN query instead of two sequential SELECTs.
+        row = (
+            await session.execute(
+                select(Email, Lead)
+                .join(Lead, Email.lead_id == Lead.id)
+                .where(Email.id == email_uuid)
+            )
+        ).one_or_none()
+        if not row:
             logger.warning("[bs_email] Email not found | id={}", email_id)
             return False
-        recipient_result = await session.execute(select(Lead).where(Lead.id == email.lead_id))
-        lead = recipient_result.scalar_one_or_none()
-        if not lead or not lead.opt_in:
+        email, lead = row
+        if not lead.opt_in:
             logger.info(
-                "[bs_email] Email skipped — lead not found or opt_in=False | email_id={}",
+                "[bs_email] Email skipped — opt_in=False | email_id={}",
                 email_id,
             )
             return False
@@ -141,16 +177,16 @@ async def send_email(email_id: str) -> bool:
                     await server.login(settings.smtp_user, settings.smtp_password)
                 await server.send_message(msg)
             await session.execute(
-                update(Email).where(Email.id == email_id).values(
-                    sent_at=datetime.now(timezone.utc)
-                )
+                update(Email)
+                .where(Email.id == email_uuid)
+                .values(sent_at=datetime.now(UTC))
             )
             await session.commit()
             logger.info("[bs_email] Email sent | id={}", email_id)
             return True
         except Exception as exc:
+            # Ne pas committer — db_session() effectue le rollback automatiquement.
             logger.error("[bs_email] Send failed | id={} | {}", email_id, str(exc))
-            await session.commit()
             return False
 
 
@@ -161,20 +197,28 @@ async def track_open(email_id: str) -> None:
     Args:
         email_id: Database ID of the tracked Email.
     """
+    try:
+        email_uuid = uuid.UUID(email_id)
+    except ValueError:
+        logger.warning("[bs_email] track_open — invalid UUID | id={}", email_id)
+        return
+
     async with db_session() as session:
-        result = await session.execute(select(Email).where(Email.id == email_id))
+        result = await session.execute(select(Email).where(Email.id == email_uuid))
         email_record = result.scalar_one_or_none()
+        if not email_record:
+            logger.warning("[bs_email] track_open — email not found | id={}", email_id)
+            return
         await session.execute(
-            update(Email).where(Email.id == email_id).values(
-                opened_at=datetime.now(timezone.utc)
-            )
+            update(Email)
+            .where(Email.id == email_uuid)
+            .values(opened_at=datetime.now(UTC))
         )
-        if email_record:
-            await session.execute(
-                update(Lead)
-                .where(Lead.id == email_record.lead_id)
-                .values(email_opens=Lead.email_opens + 1)
-            )
+        await session.execute(
+            update(Lead)
+            .where(Lead.id == email_record.lead_id)
+            .values(email_opens=Lead.email_opens + 1)
+        )
         await session.commit()
     logger.info("[bs_email] Open tracked | email_id={}", email_id)
 
@@ -187,20 +231,28 @@ async def track_click(email_id: str, link: str) -> None:
         email_id: Database ID of the tracked Email.
         link:     URL that was clicked.
     """
+    try:
+        email_uuid = uuid.UUID(email_id)
+    except ValueError:
+        logger.warning("[bs_email] track_click — invalid UUID | id={}", email_id)
+        return
+
     async with db_session() as session:
-        result = await session.execute(select(Email).where(Email.id == email_id))
+        result = await session.execute(select(Email).where(Email.id == email_uuid))
         email_record = result.scalar_one_or_none()
+        if not email_record:
+            logger.warning("[bs_email] track_click — email not found | id={}", email_id)
+            return
         await session.execute(
-            update(Email).where(Email.id == email_id).values(
-                clicked_at=datetime.now(timezone.utc)
-            )
+            update(Email)
+            .where(Email.id == email_uuid)
+            .values(clicked_at=datetime.now(UTC))
         )
-        if email_record:
-            await session.execute(
-                update(Lead)
-                .where(Lead.id == email_record.lead_id)
-                .values(email_clicks=Lead.email_clicks + 1)
-            )
+        await session.execute(
+            update(Lead)
+            .where(Lead.id == email_record.lead_id)
+            .values(email_clicks=Lead.email_clicks + 1)
+        )
         await session.commit()
     logger.info("[bs_email] Click tracked | email_id={} | link={}", email_id, link)
 

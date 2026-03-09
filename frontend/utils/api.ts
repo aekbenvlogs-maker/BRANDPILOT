@@ -13,7 +13,7 @@ const API_BASE =
  */
 export async function apiFetch<T = unknown>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("bs_token") : null;
@@ -32,7 +32,9 @@ export async function apiFetch<T = unknown>(
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "Unknown error");
-    throw new Error(`[apiFetch] ${response.status} ${response.statusText}: ${detail}`);
+    throw new Error(
+      `[apiFetch] ${response.status} ${response.statusText}: ${detail}`,
+    );
   }
 
   const contentType = response.headers.get("content-type") ?? "";

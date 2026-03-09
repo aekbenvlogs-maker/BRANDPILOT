@@ -10,23 +10,23 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
+import uuid
 
 from celery import Celery, chain, group
 from celery.schedules import crontab
+from database.connection import db_session
+from database.models_orm import Campaign, Lead, ScoringWeights, WorkflowJob
 from loguru import logger
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from configs.alerting import send_alert
 from configs.settings import get_settings
-from database.connection import db_session
-from database.models_orm import Campaign, Lead, ScoringWeights, WorkflowJob
 from microservices.bs_ai_image.worker import task_generate_image
-from microservices.bs_ai_text.worker import task_generate_email, task_generate_post
-from microservices.bs_email.worker import task_create_sequence, task_send_email
+from microservices.bs_ai_text.worker import task_generate_post
+from microservices.bs_email.worker import task_create_sequence
 from microservices.bs_scoring.worker import task_rank_leads, task_score_lead
 
 settings = get_settings()
@@ -75,7 +75,9 @@ async def _update_job_status(job_id: str, status: str, result: Any = None) -> No
         values: dict[str, Any] = {"status": status}
         if result is not None:
             values["result"] = result
-        await session.execute(update(WorkflowJob).where(WorkflowJob.id == job_id).values(**values))
+        await session.execute(
+            update(WorkflowJob).where(WorkflowJob.id == job_id).values(**values)
+        )
         await session.commit()
     logger.info("[workflow] Job {} → {}", job_id, status)
 
@@ -139,7 +141,9 @@ async def _adjust_scoring_weights(
             setattr(weights, field, new_val)
     weights.updated_by = "feedback_loop"
     await session.commit()
-    logger.info("[workflow] Scoring weights adjusted | project={} delta={}", project_id, delta)
+    logger.info(
+        "[workflow] Scoring weights adjusted | project={} delta={}", project_id, delta
+    )
 
 
 async def run_lead_pipeline(leads: list[dict[str, Any]], campaign_id: str) -> str:
@@ -158,7 +162,9 @@ async def run_lead_pipeline(leads: list[dict[str, Any]], campaign_id: str) -> st
     Returns:
         Workflow job ID.
     """
-    job_id = await _create_job("lead_pipeline", {"campaign_id": campaign_id, "count": len(leads)})
+    job_id = await _create_job(
+        "lead_pipeline", {"campaign_id": campaign_id, "count": len(leads)}
+    )
     logger.info("[workflow] Lead pipeline start | job={} leads={}", job_id, len(leads))
     try:
         scoring_tasks = group(task_score_lead.s(lead) for lead in leads)
@@ -196,7 +202,9 @@ async def run_campaign_pipeline(
     Returns:
         Workflow job ID.
     """
-    job_id = await _create_job("campaign_pipeline", {"campaign": campaign_data.get("id")})
+    job_id = await _create_job(
+        "campaign_pipeline", {"campaign": campaign_data.get("id")}
+    )
     logger.info("[workflow] Campaign pipeline start | job={}", job_id)
     try:
         # Budget preflight — abort before dispatching any API calls
@@ -205,7 +213,17 @@ async def run_campaign_pipeline(
             async with db_session() as session:
                 await _check_campaign_budget(str(cid), session)
         content_tasks = group(
-            task_generate_post.s(lead.get("sector", "B2B"), campaign_data.get("tone", "professional"))
+            task_generate_post.s(
+                lead.get("sector", "B2B"),
+                campaign_data.get("tone", "professional"),
+                campaign_data.get("platform", "linkedin"),
+                campaign_data.get("language", "fr"),
+                None,  # campaign_id passed via chain context
+                lead.get("sector", "other"),
+                lead.get("company", ""),
+                lead.get("company_size", ""),
+                lead.get("score_tier", ""),
+            )
             for lead in leads[:5]  # generate up to 5 personalised posts
         )
         image_task = task_generate_image.s(
@@ -218,7 +236,9 @@ async def run_campaign_pipeline(
         sequence_task.apply_async()
         await _update_job_status(job_id, "running")
     except Exception as exc:
-        logger.error("[workflow] Campaign pipeline error | job={} | {}", job_id, str(exc))
+        logger.error(
+            "[workflow] Campaign pipeline error | job={} | {}", job_id, str(exc)
+        )
         await _update_job_status(job_id, "failed", str(exc))
     return job_id
 
@@ -237,7 +257,9 @@ async def run_feedback_loop(campaign_id: str, kpis: dict[str, Any]) -> str:
     Returns:
         Workflow job ID.
     """
-    job_id = await _create_job("feedback_loop", {"campaign_id": campaign_id, "kpis": kpis})
+    job_id = await _create_job(
+        "feedback_loop", {"campaign_id": campaign_id, "kpis": kpis}
+    )
     logger.info("[workflow] Feedback loop start | job={} | kpis={}", job_id, kpis)
     try:
         open_rate = float(kpis.get("open_rate", 0))
@@ -246,12 +268,16 @@ async def run_feedback_loop(campaign_id: str, kpis: dict[str, Any]) -> str:
         analysis = {
             "campaign_id": campaign_id,
             "performance_tier": (
-                "high" if conversion_rate > 0.05 else "medium" if conversion_rate > 0.02 else "low"
+                "high"
+                if conversion_rate > 0.05
+                else "medium" if conversion_rate > 0.02 else "low"
             ),
             "open_rate": open_rate,
             "click_rate": click_rate,
             "conversion_rate": conversion_rate,
-            "recommendations": _build_recommendations(open_rate, click_rate, conversion_rate),
+            "recommendations": _build_recommendations(
+                open_rate, click_rate, conversion_rate
+            ),
         }
 
         # Fetch project_id from campaign to update scoring weights
@@ -267,7 +293,8 @@ async def run_feedback_loop(campaign_id: str, kpis: dict[str, Any]) -> str:
                     delta={"engagement_w": +0.05, "sector_w": -0.05},
                 )
                 logger.info(
-                    "[workflow] Weights adjusted (low performance) | campaign={}", campaign_id
+                    "[workflow] Weights adjusted (low performance) | campaign={}",
+                    campaign_id,
                 )
 
         await _update_job_status(job_id, "completed", analysis)
@@ -277,7 +304,9 @@ async def run_feedback_loop(campaign_id: str, kpis: dict[str, Any]) -> str:
     return job_id
 
 
-def _build_recommendations(open_rate: float, click_rate: float, conversion_rate: float) -> list[str]:
+def _build_recommendations(
+    open_rate: float, click_rate: float, conversion_rate: float
+) -> list[str]:
     """Build improvement recommendations from KPI thresholds."""
     recs: list[str] = []
     if open_rate < 0.25:
@@ -294,7 +323,9 @@ def _build_recommendations(open_rate: float, click_rate: float, conversion_rate:
 # ─── Celery Entry Point ───────────────────────────────────────────────────────
 
 
-@_celery.task(bind=True, name="workflow.run_l2c_pipeline", max_retries=3, default_retry_delay=30)
+@_celery.task(
+    bind=True, name="workflow.run_l2c_pipeline", max_retries=3, default_retry_delay=30
+)
 def run_l2c_pipeline(self: Any, campaign_id: str) -> dict[str, Any]:
     """
     Celery entry-point: full Lead-to-Campaign pipeline.
@@ -312,9 +343,8 @@ def run_l2c_pipeline(self: Any, campaign_id: str) -> dict[str, Any]:
     import asyncio
 
     async def _run() -> dict[str, Any]:
-        from sqlalchemy import select
-
         from database.models_orm import Campaign, Lead
+        from sqlalchemy import select
 
         async with db_session() as session:
             camp_result = await session.execute(
@@ -346,7 +376,9 @@ def run_l2c_pipeline(self: Any, campaign_id: str) -> dict[str, Any]:
         lead_job_id = await run_lead_pipeline(leads, campaign_id)
         logger.info(
             "[workflow] L2C pipeline | campaign={} leads={} job={}",
-            campaign_id, len(leads), lead_job_id,
+            campaign_id,
+            len(leads),
+            lead_job_id,
         )
         return {
             "lead_job_id": lead_job_id,
@@ -358,7 +390,9 @@ def run_l2c_pipeline(self: Any, campaign_id: str) -> dict[str, Any]:
         return asyncio.run(_run())
     except Exception as exc:
         logger.error(
-            "[workflow] run_l2c_pipeline failed | campaign={} error={}", campaign_id, str(exc)
+            "[workflow] run_l2c_pipeline failed | campaign={} error={}",
+            campaign_id,
+            str(exc),
         )
         raise self.retry(exc=exc)
 
@@ -381,12 +415,12 @@ def purge_expired_leads() -> dict[str, int]:
     async def _run() -> dict[str, int]:
         cutoff = datetime.now(UTC) - timedelta(days=settings.data_retention_days)
         async with db_session() as session:
-            result = await session.execute(
-                delete(Lead).where(Lead.created_at < cutoff)
-            )
+            result = await session.execute(delete(Lead).where(Lead.created_at < cutoff))
             await session.commit()
         logger.info(
-            "[workflow] RGPD purge completed | deleted={} cutoff={}", result.rowcount, cutoff
+            "[workflow] RGPD purge completed | deleted={} cutoff={}",
+            result.rowcount,
+            cutoff,
         )
         await send_alert(
             f"RGPD purge: {result.rowcount} leads deleted (cutoff: {cutoff.date()})",

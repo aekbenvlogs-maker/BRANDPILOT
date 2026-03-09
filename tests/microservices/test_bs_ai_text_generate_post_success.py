@@ -27,17 +27,18 @@ async def test_generate_post_returns_non_empty_string():
         response.choices = [AsyncMock(message=AsyncMock(content="🚀 Scale your brand with AI!"))]
         mock_client.return_value.chat.completions.create = AsyncMock(return_value=response)
 
-        result = await generate_post("SaaS", "professional")
+        result = await generate_post(None, "professional", sector="SaaS")
 
-    assert isinstance(result, str)
-    assert "brand" in result.lower() or len(result) > 5
+    assert isinstance(result, dict)
+    assert isinstance(result["text"], str)
+    assert "brand" in result["text"].lower() or len(result["text"]) > 5
 
 
 @pytest.mark.asyncio
 async def test_generate_post_uses_cache_on_second_call():
     from microservices.bs_ai_text.service import generate_post
 
-    cached_value = b"Cached marketing post"
+    cached_value = "Cached marketing post"
 
     with patch("microservices.bs_ai_text.service.aioredis") as mock_redis:
         redis_instance = AsyncMock()
@@ -45,6 +46,6 @@ async def test_generate_post_uses_cache_on_second_call():
         redis_instance.aclose = AsyncMock()
         mock_redis.from_url.return_value = redis_instance
 
-        result = await generate_post("SaaS", "professional")
+        result = await generate_post(None, "professional", sector="SaaS")
 
-    assert result == "Cached marketing post"
+    assert result["text"] == "Cached marketing post"

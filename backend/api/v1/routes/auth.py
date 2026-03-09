@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from database.connection import get_db_session
+from database.models_orm import User
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,14 +26,12 @@ from backend.api.v1.services.auth_service import (
     authenticate_user,
     create_access_token,
     create_refresh_token,
+    hash_password,
     revoke_refresh_token,
     store_refresh_token,
     validate_refresh_token,
-    hash_password,
 )
 from configs.settings import get_settings
-from database.connection import get_db_session
-from database.models_orm import User
 
 router = APIRouter()
 settings = get_settings()
@@ -111,7 +111,9 @@ async def logout(
     await revoke_refresh_token(db, body.refresh_token)
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
+)
 async def register(
     data: UserCreate,
     db: AsyncSession = Depends(get_db_session),

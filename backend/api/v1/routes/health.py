@@ -13,16 +13,15 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from database.connection import get_db_session
+from fastapi import APIRouter, Depends
 import httpx
-import redis.asyncio as aioredis
-from fastapi import APIRouter
 from loguru import logger
+import redis.asyncio as aioredis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
 
 from configs.settings import get_settings
-from database.connection import get_db_session
 
 router = APIRouter()
 settings = get_settings()
@@ -51,7 +50,9 @@ async def _check_http_service(name: str, url: str) -> dict[str, str]:
                 return {"name": name, "status": "healthy"}
             return {"name": name, "status": "degraded", "code": str(resp.status_code)}
     except Exception as exc:
-        logger.warning("[BRANDSCALE] Health check failed | service={} error={}", name, str(exc))
+        logger.warning(
+            "[BRANDSCALE] Health check failed | service={} error={}", name, str(exc)
+        )
         return {"name": name, "status": "down", "error": str(exc)}
 
 
@@ -69,7 +70,7 @@ async def _check_redis() -> dict[str, str]:
     try:
         client = aioredis.from_url(settings.redis_url, socket_timeout=2)
         await client.ping()
-        await client.aclose()
+        await client.aclose()  # type: ignore[attr-defined]
         return {"name": "redis", "status": "healthy"}
     except Exception as exc:
         return {"name": "redis", "status": "down", "error": str(exc)}

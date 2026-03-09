@@ -10,9 +10,8 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import date, datetime
-from typing import Optional
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -46,5 +45,5 @@ class AnalyticsSummaryResponse(BaseModel):
     hot_leads: int
     warm_leads: int
     cold_leads: int
-    period_start: Optional[date] = None
-    period_end: Optional[date] = None
+    period_start: date | None = None
+    period_end: date | None = None

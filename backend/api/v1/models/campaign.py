@@ -10,13 +10,11 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel, Field
+import uuid
 
 from database.models_orm import CampaignChannel, CampaignStatus
+from pydantic import BaseModel, Field
 
 
 class CampaignBase(BaseModel):
@@ -35,9 +33,9 @@ class CampaignCreate(CampaignBase):
 class CampaignUpdate(BaseModel):
     """Request body for updating a campaign (all optional)."""
 
-    name: Optional[str] = Field(default=None, min_length=1, max_length=256)
-    status: Optional[CampaignStatus] = None
-    channel: Optional[CampaignChannel] = None
+    name: str | None = Field(default=None, min_length=1, max_length=256)
+    status: CampaignStatus | None = None
+    channel: CampaignChannel | None = None
 
 
 class CampaignResponse(CampaignBase):
@@ -48,7 +46,7 @@ class CampaignResponse(CampaignBase):
     status: CampaignStatus
     created_at: datetime
     updated_at: datetime
-    launched_at: Optional[datetime] = None
+    launched_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -68,5 +66,5 @@ class CampaignLaunchResponse(BaseModel):
     campaign_id: uuid.UUID
     status: CampaignStatus
     launched_at: datetime
-    job_id: Optional[uuid.UUID] = None
+    job_id: uuid.UUID | None = None
     message: str

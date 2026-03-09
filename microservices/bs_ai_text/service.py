@@ -10,20 +10,26 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import hashlib
 import json
+from typing import Any
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Optional
 
-import redis.asyncio as aioredis
-from loguru import logger
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-from configs.ai_config import compute_cost, get_fallback_template, get_model_config, get_openai_client
-from configs.settings import get_settings
 from database.connection import db_session
 from database.models_orm import Analytics
+from loguru import logger
+import redis.asyncio as aioredis
+from sqlalchemy import select, update
+
+from configs.ai_config import (
+    compute_cost,
+    get_fallback_template,
+    get_local_client,
+    get_model_config,
+    get_openai_client,
+)
+from configs.settings import get_settings
 
 settings = get_settings()
 
@@ -43,7 +49,7 @@ def _cache_key(prefix: str, **kwargs: Any) -> str:
     return f"brandscale:ai_text:{prefix}:{digest}"
 
 
-async def _get_cached(key: str) -> Optional[str]:
+async def _get_cached(key: str) -> str | None:
     """Retrieve a cached response or None."""
     try:
         client = await _get_redis()
@@ -66,33 +72,49 @@ async def _accumulate_ai_cost(campaign_id: uuid.UUID, cost_usd: float) -> None:
     """Upsert AI generation cost into today's Analytics row for the campaign."""
     if cost_usd <= 0:
         return
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     try:
         async with db_session() as session:
-            stmt = (
-                pg_insert(Analytics)
-                .values(
-                    id=uuid.uuid4(),
-                    campaign_id=campaign_id,
-                    date=today,
-                    ai_cost_usd=cost_usd,
-                )
-                .on_conflict_do_update(
-                    index_elements=["campaign_id", "date"],
-                    set_={
-                        "ai_cost_usd": Analytics.ai_cost_usd + cost_usd,
-                        "updated_at": datetime.now(timezone.utc),
-                    },
+            # Dialect-agnostic upsert: try update first, insert if no row exists
+            existing = await session.execute(
+                select(Analytics).where(
+                    Analytics.campaign_id == campaign_id,
+                    Analytics.date == today,
                 )
             )
-            await session.execute(stmt)
+            row = existing.scalar_one_or_none()
+            if row:
+                await session.execute(
+                    update(Analytics)
+                    .where(
+                        Analytics.campaign_id == campaign_id,
+                        Analytics.date == today,
+                    )
+                    .values(
+                        ai_cost_usd=Analytics.ai_cost_usd + cost_usd,
+                        updated_at=datetime.now(UTC),
+                    )
+                )
+            else:
+                session.add(
+                    Analytics(
+                        id=uuid.uuid4(),
+                        campaign_id=campaign_id,
+                        date=today,
+                        ai_cost_usd=cost_usd,
+                    )
+                )
             await session.commit()
         logger.info(
-            "[bs_ai_text] Cost persisted | campaign={} cost=${:.4f}", campaign_id, cost_usd
+            "[bs_ai_text] Cost persisted | campaign={} cost=${:.4f}",
+            campaign_id,
+            cost_usd,
         )
     except Exception as exc:
         logger.error(
-            "[bs_ai_text] Cost persist failed | campaign={} error={}", campaign_id, str(exc)
+            "[bs_ai_text] Cost persist failed | campaign={} error={}",
+            campaign_id,
+            str(exc),
         )
 
 
@@ -104,7 +126,7 @@ async def _generate_text(
     user_prompt: str,
     model_config_key: str,
     cache_key: str,
-    campaign_id: Optional[uuid.UUID] = None,
+    campaign_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
     """
     Call the OpenAI-compatible API to generate text.
@@ -159,7 +181,9 @@ async def _generate_text(
 
         logger.info(
             "[bs_ai_text] Generated | model={} tokens={} cost=${:.4f}",
-            config.name, tokens_used, cost_usd,
+            config.name,
+            tokens_used,
+            cost_usd,
         )
         if campaign_id is not None:
             await _accumulate_ai_cost(campaign_id, cost_usd)
@@ -176,8 +200,6 @@ async def _generate_text(
         # 3. Fallback to local model if configured
         if settings.ai_fallback_to_local:
             try:
-                from configs.ai_config import get_local_client
-
                 local_client = get_local_client()
                 response = await local_client.chat.completions.create(
                     model=settings.ollama_model,
@@ -188,24 +210,36 @@ async def _generate_text(
                     max_tokens=config.max_tokens,
                 )
                 text = response.choices[0].message.content or ""
-                return {"text": text, "tokens_used": 0, "cost_usd": 0.0, "from_fallback": False}
+                return {
+                    "text": text,
+                    "tokens_used": 0,
+                    "cost_usd": 0.0,
+                    "from_fallback": False,
+                }
             except Exception as local_exc:
-                logger.error("[bs_ai_text] Local model also failed | error={}", str(local_exc))
+                logger.error(
+                    "[bs_ai_text] Local model also failed | error={}", str(local_exc)
+                )
 
         # 4. Template fallback
         fallback = get_fallback_template(model_config_key)
-        return {"text": fallback, "tokens_used": 0, "cost_usd": 0.0, "from_fallback": True}
+        return {
+            "text": fallback,
+            "tokens_used": 0,
+            "cost_usd": 0.0,
+            "from_fallback": True,
+        }
 
 
 # ---------------------------------------------------------------------------
 # Public service functions
 # ---------------------------------------------------------------------------
 async def generate_post(
-    lead_id: Optional[uuid.UUID],
+    lead_id: uuid.UUID | None,
     tone: str = "professional",
     platform: str = "linkedin",
     language: str = "fr",
-    campaign_id: Optional[uuid.UUID] = None,
+    campaign_id: uuid.UUID | None = None,
     sector: str = "other",
     company: str = "",
     company_size: str = "other",
@@ -246,17 +280,25 @@ async def generate_post(
 
 
 async def generate_email_content(
-    lead_id: Optional[uuid.UUID],
+    lead_id: uuid.UUID | None,
     campaign_id: uuid.UUID,
     language: str = "fr",
+    sector: str = "other",
+    company: str = "",
+    company_size: str = "",
+    score_tier: str = "",
 ) -> dict[str, Any]:
     """
     Generate personalised email body + subject for a lead.
 
     Args:
-        lead_id:     Lead UUID for personalisation.
-        campaign_id: Campaign UUID for context.
-        language:    Output language code.
+        lead_id:      Lead UUID for personalisation.
+        campaign_id:  Campaign UUID for context.
+        language:     Output language code.
+        sector:       Lead sector (injected into prompt for personalisation).
+        company:      Lead company name.
+        company_size: Lead company size (small/medium/large/enterprise).
+        score_tier:   Lead score tier (hot/warm/cold).
 
     Returns:
         Dict with text (formatted as SUBJECT\\n\\nBODY), tokens_used, cost_usd.
@@ -267,19 +309,31 @@ async def generate_email_content(
         "Format: first line is the subject, then blank line, then email body. "
         "Always include [UNSUBSCRIBE_LINK] placeholder at the bottom (RGPD)."
     )
+    lead_context = ""
+    if sector and sector != "other":
+        lead_context += f" Sector: {sector}."
+    if company:
+        lead_context += f" Company: {company}."
+    if company_size:
+        lead_context += f" Company size: {company_size}."
+    if score_tier:
+        lead_context += f" Lead quality tier: {score_tier}."
     user_prompt = (
-        f"Write a personalised marketing email. "
-        f"campaign_id={campaign_id} lead_id={lead_id} language={language}."
+        f"Write a highly personalised marketing email targeting a B2B lead."
+        f"{lead_context}"
+        f" Language: {language}."
+        f" Lead ID: {lead_id}."
     )
-    key = _cache_key("email", campaign_id=str(campaign_id), sector="other", lang=language)
+    # Cache key uses sector/lang for cross-campaign reuse (not campaign_id/lead_id)
+    key = _cache_key("email", sector=sector, lang=language)
     return await _generate_text(system_prompt, user_prompt, "email", key, campaign_id)
 
 
 async def generate_ad_copy(
-    lead_id: Optional[uuid.UUID],
+    lead_id: uuid.UUID | None,
     tone: str = "persuasive",
     language: str = "fr",
-    campaign_id: Optional[uuid.UUID] = None,
+    campaign_id: uuid.UUID | None = None,
     sector: str = "other",
 ) -> dict[str, Any]:
     """
@@ -298,7 +352,9 @@ async def generate_ad_copy(
         f"Write {tone} ad copy in {language}. Max 150 characters. "
         "Strong CTA required."
     )
-    user_prompt = f"Write ad copy for a {sector} audience, tone={tone}, language={language}."
+    user_prompt = (
+        f"Write ad copy for a {sector} audience, tone={tone}, language={language}."
+    )
     key = _cache_key("ad", sector=sector, tone=tone, lang=language)
     return await _generate_text(system_prompt, user_prompt, "ad", key, campaign_id)
 
@@ -323,13 +379,17 @@ async def generate_newsletter(
         "Include intro, main content sections, and CTA. "
         "Add [UNSUBSCRIBE_LINK] at the footer (RGPD)."
     )
-    user_prompt = f"Write a newsletter for campaign_id={campaign_id}, language={language}."
+    user_prompt = (
+        f"Write a newsletter for campaign_id={campaign_id}, language={language}."
+    )
     key = _cache_key("newsletter", campaign_id=str(campaign_id), lang=language)
-    return await _generate_text(system_prompt, user_prompt, "newsletter", key, campaign_id)
+    return await _generate_text(
+        system_prompt, user_prompt, "newsletter", key, campaign_id
+    )
 
 
 async def generate_video_script(
-    lead_id: Optional[uuid.UUID],
+    lead_id: uuid.UUID | None,
     campaign_id: uuid.UUID,
     language: str = "fr",
 ) -> dict[str, Any]:
@@ -354,7 +414,9 @@ async def generate_video_script(
         f"lead_id={lead_id}, language={language}."
     )
     key = _cache_key("video_script", lead_id=str(lead_id), campaign_id=str(campaign_id))
-    return await _generate_text(system_prompt, user_prompt, "video_script", key, campaign_id)
+    return await _generate_text(
+        system_prompt, user_prompt, "video_script", key, campaign_id
+    )
 
 
 if __name__ == "__main__":

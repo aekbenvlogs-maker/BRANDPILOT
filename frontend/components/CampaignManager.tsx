@@ -124,7 +124,9 @@ export function CampaignManager() {
         </button>
       </form>
 
-      {isLoading && <p className="text-sm text-neutral-400">Loading campaigns…</p>}
+      {isLoading && (
+        <p className="text-sm text-neutral-400">Loading campaigns…</p>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
         <table className="w-full p-4 text-sm">

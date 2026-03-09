@@ -34,7 +34,9 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(bind=True, name="bs_ai_video.generate_script", max_retries=3, default_retry_delay=30)
+@celery_app.task(
+    bind=True, name="bs_ai_video.generate_script", max_retries=3, default_retry_delay=30
+)
 def task_generate_video_script(
     self: Any,
     lead_data: dict[str, Any],
@@ -52,10 +54,14 @@ def task_generate_video_script(
     """
     from microservices.bs_ai_video.service import generate_video_script
 
-    logger.info("[bs_ai_video] Task generate_script | campaign={}", campaign_data.get("name"))
+    logger.info(
+        "[bs_ai_video] Task generate_script | campaign={}", campaign_data.get("name")
+    )
     try:
         loop = asyncio.new_event_loop()
-        result = loop.run_until_complete(generate_video_script(lead_data, campaign_data))
+        result = loop.run_until_complete(
+            generate_video_script(lead_data, campaign_data)
+        )
         loop.close()
         return result
     except Exception as exc:
@@ -63,7 +69,9 @@ def task_generate_video_script(
         raise self.retry(exc=exc)
 
 
-@celery_app.task(bind=True, name="bs_ai_video.render", max_retries=3, default_retry_delay=60)
+@celery_app.task(
+    bind=True, name="bs_ai_video.render", max_retries=3, default_retry_delay=60
+)
 def task_render_video(
     self: Any,
     script: str,

@@ -35,7 +35,9 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(bind=True, name="bs_ai_image.generate", max_retries=3, default_retry_delay=60)
+@celery_app.task(
+    bind=True, name="bs_ai_image.generate", max_retries=3, default_retry_delay=60
+)
 def task_generate_image(
     self: Any,
     prompt: str,

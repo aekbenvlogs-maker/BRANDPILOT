@@ -10,17 +10,14 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
+from database.connection import close_db, create_all_tables, init_db
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
-
-from configs.logging_config import setup_logging
-from configs.settings import get_settings
-from database.connection import close_db, create_all_tables, init_db
 
 # Route imports
 from backend.api.v1.routes import (
@@ -36,6 +33,8 @@ from backend.api.v1.routes import (
 from backend.middleware.auth import JWTAuthMiddleware
 from backend.middleware.error_handler import register_exception_handlers
 from backend.middleware.logging_middleware import RequestLoggingMiddleware
+from configs.logging_config import setup_logging
+from configs.settings import get_settings
 
 settings = get_settings()
 
@@ -141,11 +140,17 @@ def _register_routers(app: FastAPI) -> None:
 
     app.include_router(auth.router, prefix=f"{prefix}/auth", tags=["Auth"])
     app.include_router(projects.router, prefix=f"{prefix}/projects", tags=["Projects"])
-    app.include_router(campaigns.router, prefix=f"{prefix}/campaigns", tags=["Campaigns"])
+    app.include_router(
+        campaigns.router, prefix=f"{prefix}/campaigns", tags=["Campaigns"]
+    )
     app.include_router(leads.router, prefix=f"{prefix}/leads", tags=["Leads"])
     app.include_router(content.router, prefix=f"{prefix}/content", tags=["Content"])
-    app.include_router(workflows.router, prefix=f"{prefix}/workflows", tags=["Workflows"])
-    app.include_router(analytics.router, prefix=f"{prefix}/analytics", tags=["Analytics"])
+    app.include_router(
+        workflows.router, prefix=f"{prefix}/workflows", tags=["Workflows"]
+    )
+    app.include_router(
+        analytics.router, prefix=f"{prefix}/analytics", tags=["Analytics"]
+    )
     app.include_router(health.router, prefix=f"{prefix}/health", tags=["Health"])
 
 

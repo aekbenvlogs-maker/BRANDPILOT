@@ -14,7 +14,7 @@ import time
 import uuid
 
 from loguru import logger
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -30,7 +30,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     - Duration in milliseconds
     """
 
-    async def dispatch(self, request: Request, call_next: object) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         """
         Log request start, call next middleware/handler, log response.
 
@@ -56,7 +58,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         )
 
         try:
-            response: Response = await call_next(request)  # type: ignore[call-arg]
+            response: Response = await call_next(request)
         except Exception as exc:
             elapsed_ms = (time.perf_counter() - start) * 1000
             logger.error(

@@ -17,7 +17,13 @@ interface GenerateResponse {
   cached: boolean;
 }
 
-const CONTENT_TYPES = ["post", "email", "ad", "newsletter", "video_script"] as const;
+const CONTENT_TYPES = [
+  "post",
+  "email",
+  "ad",
+  "newsletter",
+  "video_script",
+] as const;
 
 export function ContentGeneratorUI() {
   const [campaignId, setCampaignId] = useState("");
@@ -29,7 +35,7 @@ export function ContentGeneratorUI() {
 
   const { data: history } = useSWR<{ items: ContentResponse[] }>(
     campaignId ? `/api/v1/content/${campaignId}` : null,
-    (url: string) => apiFetch(url)
+    (url: string) => apiFetch(url),
   );
 
   async function handleGenerate(e: React.FormEvent) {
@@ -107,7 +113,9 @@ export function ContentGeneratorUI() {
               <span className="text-xs text-neutral-400">from cache</span>
             )}
           </div>
-          <pre className="whitespace-pre-wrap text-sm text-neutral-800">{result.content}</pre>
+          <pre className="whitespace-pre-wrap text-sm text-neutral-800">
+            {result.content}
+          </pre>
         </div>
       )}
 
@@ -120,7 +128,8 @@ export function ContentGeneratorUI() {
             {history.items.map((item) => (
               <li key={item.id} className="p-4">
                 <p className="mb-1 text-xs text-neutral-400">
-                  {item.content_type} — {new Date(item.created_at).toLocaleString()}
+                  {item.content_type} —{" "}
+                  {new Date(item.created_at).toLocaleString()}
                 </p>
                 <p className="line-clamp-3 text-sm text-neutral-700 dark:text-neutral-300">
                   {item.body}

@@ -28,14 +28,11 @@ export default function useAnalytics(campaignId?: string) {
   const { data: summary, isLoading: summaryLoading } = useSWR<AnalyticsSummary>(
     summaryKey,
     (url: string) => apiFetch(url),
-    { refreshInterval: 60_000 }
+    { refreshInterval: 60_000 },
   );
 
   const { data: campaignData, isLoading: campaignLoading } =
-    useSWR<CampaignAnalytics>(
-      campaignKey,
-      (url: string) => apiFetch(url)
-    );
+    useSWR<CampaignAnalytics>(campaignKey, (url: string) => apiFetch(url));
 
   return {
     summary,

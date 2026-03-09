@@ -14,7 +14,11 @@ from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from microservices.bs_ai_image.service import generate_marketing_image, resize_for_platform
+from microservices.bs_ai_image.service import (
+    _PLATFORM_SIZES,
+    generate_marketing_image,
+    resize_for_platform,
+)
 
 router = APIRouter(prefix="/bs-ai-image", tags=["bs-ai-image"])
 
@@ -66,11 +70,17 @@ async def post_generate_image(payload: GenerateImageRequest) -> GenerateImageRes
     """
     logger.info("[bs_ai_image] /generate/image | style={}", payload.style)
     try:
-        url = await generate_marketing_image(payload.prompt, payload.style, payload.size)
-        return GenerateImageResponse(image_url=url, size=payload.size, style=payload.style)
+        url = await generate_marketing_image(
+            payload.prompt, payload.style, payload.size
+        )
+        return GenerateImageResponse(
+            image_url=url, size=payload.size, style=payload.style
+        )
     except Exception as exc:
         logger.error("[bs_ai_image] Generation failed | error={}", str(exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
 
 @router.post(
@@ -90,12 +100,14 @@ async def post_resize(payload: ResizeRequest) -> ResizeResponse:
     """
     logger.info("[bs_ai_image] /resize | platform={}", payload.platform)
     try:
-        result = await resize_for_platform(payload.image_url, payload.platform)
+        resized_url = await resize_for_platform(payload.image_url, payload.platform)
         return ResizeResponse(
-            resized_url=result["url"],
+            resized_url=resized_url,
             platform=payload.platform,
-            dimensions=result.get("dimensions", "unknown"),
+            dimensions=_PLATFORM_SIZES.get(payload.platform, "1080x1080"),
         )
     except Exception as exc:
         logger.error("[bs_ai_image] Resize failed | error={}", str(exc))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )

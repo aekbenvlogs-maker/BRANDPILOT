@@ -10,9 +10,8 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
-from typing import Optional
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -21,7 +20,7 @@ class ProjectBase(BaseModel):
     """Shared fields for Project create/update."""
 
     name: str = Field(min_length=1, max_length=256, description="Project name")
-    description: Optional[str] = Field(default=None, description="Project description")
+    description: str | None = Field(default=None, description="Project description")
 
 
 class ProjectCreate(ProjectBase):
@@ -31,9 +30,9 @@ class ProjectCreate(ProjectBase):
 class ProjectUpdate(BaseModel):
     """Request body for updating a project (all optional)."""
 
-    name: Optional[str] = Field(default=None, min_length=1, max_length=256)
-    description: Optional[str] = None
-    archived: Optional[bool] = None
+    name: str | None = Field(default=None, min_length=1, max_length=256)
+    description: str | None = None
+    archived: bool | None = None
 
 
 class ProjectResponse(ProjectBase):

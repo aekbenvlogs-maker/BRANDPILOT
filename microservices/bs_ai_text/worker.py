@@ -11,8 +11,8 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 import uuid
-from typing import Any, Optional
 
 from celery import Celery
 from loguru import logger
@@ -64,7 +64,7 @@ def _run_async(coro: Any) -> Any:
 )
 def task_generate_post(
     self: Any,
-    lead_id: Optional[str],
+    lead_id: str | None,
     tone: str = "professional",
     platform: str = "linkedin",
     language: str = "fr",
@@ -83,7 +83,9 @@ def task_generate_post(
     """
     from microservices.bs_ai_text.service import generate_post
 
-    logger.info("[bs_ai_text] Task generate_post | lead={} platform={}", lead_id, platform)
+    logger.info(
+        "[bs_ai_text] Task generate_post | lead={} platform={}", lead_id, platform
+    )
     try:
         lead_uuid = uuid.UUID(lead_id) if lead_id else None
         return _run_async(generate_post(lead_uuid, tone, platform, language))
@@ -100,7 +102,7 @@ def task_generate_post(
 )
 def task_generate_email(
     self: Any,
-    lead_id: Optional[str],
+    lead_id: str | None,
     campaign_id: str,
     language: str = "fr",
 ) -> dict[str, Any]:
@@ -117,7 +119,9 @@ def task_generate_email(
     """
     from microservices.bs_ai_text.service import generate_email_content
 
-    logger.info("[bs_ai_text] Task generate_email | lead={} campaign={}", lead_id, campaign_id)
+    logger.info(
+        "[bs_ai_text] Task generate_email | lead={} campaign={}", lead_id, campaign_id
+    )
     try:
         lead_uuid = uuid.UUID(lead_id) if lead_id else None
         campaign_uuid = uuid.UUID(campaign_id)

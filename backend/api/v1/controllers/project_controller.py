@@ -13,7 +13,6 @@ from __future__ import annotations
 import uuid
 
 from fastapi import HTTPException, status
-from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.models.project import (

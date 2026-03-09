@@ -32,7 +32,8 @@ export default function DashboardPage() {
   const { campaigns } = useCampaigns();
   const { leads } = useLeads();
 
-  const activeCampaigns = campaigns?.filter((c) => c.status === "active").length ?? 0;
+  const activeCampaigns =
+    campaigns?.filter((c) => c.status === "active").length ?? 0;
   const hotLeads = leads?.filter((l) => l.score_tier === "hot").length ?? 0;
 
   return (
@@ -54,11 +55,7 @@ export default function DashboardPage() {
           value={leads?.length ?? "—"}
           sub="All imported leads"
         />
-        <StatCard
-          label="Hot leads"
-          value={hotLeads}
-          sub="Score ≥ 70"
-        />
+        <StatCard label="Hot leads" value={hotLeads} sub="Score ≥ 70" />
         <StatCard
           label="Active campaigns"
           value={activeCampaigns}
@@ -77,7 +74,9 @@ export default function DashboardPage() {
 
       <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
         <h2 className="mb-4 text-lg font-semibold">Campaign performance</h2>
-        <Suspense fallback={<p className="text-sm text-neutral-400">Loading charts…</p>}>
+        <Suspense
+          fallback={<p className="text-sm text-neutral-400">Loading charts…</p>}
+        >
           <AnalyticsCharts />
         </Suspense>
       </section>

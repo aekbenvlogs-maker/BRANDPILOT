@@ -81,12 +81,12 @@ class AIUsageRecord:
 # Per-model pricing (input + output, USD per 1K tokens — updated 2026-03)
 # ---------------------------------------------------------------------------
 MODEL_PRICING: dict[str, dict[str, float]] = {
-    "gpt-4o":            {"input": 0.005,   "output": 0.015},
+    "gpt-4o": {"input": 0.005, "output": 0.015},
     "gpt-4-turbo-preview": {"input": 0.010, "output": 0.030},
-    "gpt-4-turbo":       {"input": 0.010,   "output": 0.030},
-    "gpt-3.5-turbo":     {"input": 0.0005,  "output": 0.0015},
-    "gpt-4o-mini":       {"input": 0.00015, "output": 0.0006},
-    "ollama/local":      {"input": 0.0,     "output": 0.0},
+    "gpt-4-turbo": {"input": 0.010, "output": 0.030},
+    "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
+    "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+    "ollama/local": {"input": 0.0, "output": 0.0},
 }
 
 
@@ -103,9 +103,9 @@ def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float:
         Estimated cost in USD.
     """
     pricing = MODEL_PRICING.get(model, {"input": 0.01, "output": 0.01})
-    return (input_tokens / 1000) * pricing["input"] + (
-        output_tokens / 1000
-    ) * pricing["output"]
+    return (input_tokens / 1000) * pricing["input"] + (output_tokens / 1000) * pricing[
+        "output"
+    ]
 
 
 # ---------------------------------------------------------------------------

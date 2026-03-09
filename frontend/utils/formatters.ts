@@ -8,7 +8,10 @@
  * Format a decimal ratio as a percentage string.
  * e.g. 0.245 → "24.5%"
  */
-export function formatPercent(value: number | null | undefined, decimals = 1): string {
+export function formatPercent(
+  value: number | null | undefined,
+  decimals = 1,
+): string {
   if (value == null) return "—";
   return `${(value * 100).toFixed(decimals)}%`;
 }
@@ -41,7 +44,9 @@ export function capitalize(str: string): string {
 /**
  * Map a score_tier key to a human-friendly label with emoji.
  */
-export function tierLabel(tier: "hot" | "warm" | "cold" | null | undefined): string {
+export function tierLabel(
+  tier: "hot" | "warm" | "cold" | null | undefined,
+): string {
   switch (tier) {
     case "hot":
       return "🔥 Hot";

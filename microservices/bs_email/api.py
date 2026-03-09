@@ -71,10 +71,14 @@ async def post_create_sequence(payload: SequenceRequest) -> SequenceResponse:
     """
     logger.info("[bs_email] /sequence | {} leads", len(payload.leads))
     try:
-        ids = await create_sequence(payload.campaign_data, payload.leads, payload.template_html)
+        ids = await create_sequence(
+            payload.campaign_data, payload.leads, payload.template_html
+        )
         return SequenceResponse(email_ids=ids, count=len(ids))
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
 
 @router.post("/send", summary="Send a single email")
@@ -93,7 +97,9 @@ async def post_send_email(payload: SendRequest) -> dict[str, Any]:
         success = await send_email(payload.email_id)
         return {"email_id": payload.email_id, "sent": success}
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
 
 @router.post("/track/open", summary="Track email open")

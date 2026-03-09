@@ -10,8 +10,8 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
+import uuid
 
 import boto3
 import httpx
@@ -66,7 +66,9 @@ async def _upload_image_to_s3(image_bytes: bytes, filename: str) -> str:
     )
     if settings.s3_endpoint_url:
         return f"{settings.s3_endpoint_url}/{settings.s3_bucket_name}/{key}"
-    return f"https://{settings.s3_bucket_name}.s3.{settings.s3_region}.amazonaws.com/{key}"
+    return (
+        f"https://{settings.s3_bucket_name}.s3.{settings.s3_region}.amazonaws.com/{key}"
+    )
 
 
 async def generate_marketing_image(
@@ -135,7 +137,8 @@ async def resize_for_platform(image_url: str, platform: str) -> str:
     target_size = _PLATFORM_SIZES.get(platform, "1080x1080")
     logger.info(
         "[bs_ai_image] Resize requested | platform={} size={}",
-        platform, target_size,
+        platform,
+        target_size,
     )
     # Real implementation would invoke a resize Lambda/microservice
     # For now, return the original URL with size param for CDN processing

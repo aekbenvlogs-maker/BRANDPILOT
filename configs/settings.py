@@ -14,9 +14,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-import yaml
-from pydantic import AliasChoices, AnyHttpUrl, EmailStr, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import yaml
 
 
 class Settings(BaseSettings):
@@ -62,12 +62,8 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     # Database
     # ---------------------------------------------------------------------------
-    database_url: str = Field(
-        description="Async database URL (asyncpg or aiosqlite)"
-    )
-    database_url_dev: str = Field(
-        default="sqlite+aiosqlite:///./brandscale_dev.db"
-    )
+    database_url: str = Field(description="Async database URL (asyncpg or aiosqlite)")
+    database_url_dev: str = Field(default="sqlite+aiosqlite:///./brandscale_dev.db")
 
     # ---------------------------------------------------------------------------
     # Redis / Celery

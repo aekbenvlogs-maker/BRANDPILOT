@@ -10,8 +10,8 @@
 
 from __future__ import annotations
 
-import sys
 from datetime import datetime
+import sys
 from zoneinfo import ZoneInfo
 
 from loguru import logger
@@ -137,7 +137,7 @@ def setup_logging(
     )
 
 
-def get_logger(name: str) -> "logger":  # type: ignore[valid-type]
+def get_logger(name: str) -> logger:  # type: ignore[valid-type]
     """
     Return a contextual logger bound to the given module name.
 

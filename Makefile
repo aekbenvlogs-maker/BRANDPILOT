@@ -55,12 +55,12 @@ help:
 	@echo "  $(GREEN)make clean$(RESET)      → Remove build artifacts and caches"
 	@echo "  $(GREEN)make help$(RESET)       → Show this help"
 	@echo ""
-        @echo "$(BLUE)  Multi-Vertical targets$(RESET)"
-        @echo "  $(GREEN)make vertical VERTICAL=rh$(RESET)          → Switch + validate a vertical"
-        @echo "  $(GREEN)make validate-vertical VERTICAL=rh$(RESET) → Validate one vertical YAML"
-        @echo "  $(GREEN)make list-verticals$(RESET)                → List available verticals"
-        @echo "  $(GREEN)make validate-all-verticals$(RESET)        → Validate all 6 verticals"
-        @echo ""
+	@echo "$(BLUE)  Multi-Vertical targets$(RESET)"
+	@echo "  $(GREEN)make vertical VERTICAL=rh$(RESET)          → Switch + validate a vertical"
+	@echo "  $(GREEN)make validate-vertical VERTICAL=rh$(RESET) → Validate one vertical YAML"
+	@echo "  $(GREEN)make list-verticals$(RESET)                → List available verticals"
+	@echo "  $(GREEN)make validate-all-verticals$(RESET)        → Validate all 6 verticals"
+	@echo ""
 # ---------------------------------------------------------------------------
 format:
 	@echo "$(YELLOW)▶ [BRANDSCALE] Running Black formatter...$(RESET)"
@@ -123,15 +123,15 @@ build:
 # ---------------------------------------------------------------------------
 docker:
 	@echo "$(YELLOW)▶ [BRANDSCALE] Building and starting Docker services...$(RESET)"
-	$(DOCKER_COMPOSE) -f docker/docker-compose.yml up --build
+	$(DOCKER_COMPOSE) -f docker-compose.yml up --build
 	@echo "$(GREEN)✓ Docker services started$(RESET)"
 
 docker-down:
 	@echo "$(YELLOW)▶ [BRANDSCALE] Stopping Docker services...$(RESET)"
-	$(DOCKER_COMPOSE) -f docker/docker-compose.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml down
 
 docker-logs:
-	$(DOCKER_COMPOSE) -f docker/docker-compose.yml logs -f
+	$(DOCKER_COMPOSE) -f docker-compose.yml logs -f
 
 # ---------------------------------------------------------------------------
 # migrate — Run Alembic migrations

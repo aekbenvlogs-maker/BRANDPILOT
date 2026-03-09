@@ -11,16 +11,15 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
+from database.connection import get_db_session
+from database.models_orm import Analytics, Campaign, CampaignStatus, Lead, ScoreTier
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.v1.models.analytics import AnalyticsResponse, AnalyticsSummaryResponse
 from backend.middleware.auth import get_current_user_id
-from database.connection import get_db_session
-from database.models_orm import Analytics, Campaign, CampaignStatus, Lead, ScoreTier
 
 router = APIRouter()
 
@@ -53,9 +52,7 @@ async def get_analytics_summary(
     """
     # Active campaigns count
     active_result = await db.execute(
-        select(func.count(Campaign.id)).where(
-            Campaign.status == CampaignStatus.active
-        )
+        select(func.count(Campaign.id)).where(Campaign.status == CampaignStatus.active)
     )
     active_campaigns = active_result.scalar_one() or 0
 

@@ -11,8 +11,8 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
+from database.models_orm import ScoreTier
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +24,6 @@ from backend.api.v1.models.lead import (
     LeadUpdate,
 )
 from backend.api.v1.services import lead_service
-from database.models_orm import ScoreTier
 
 
 async def handle_create_lead(db: AsyncSession, data: LeadCreate) -> LeadResponse:
@@ -38,24 +37,22 @@ async def handle_list_leads(
     project_id: uuid.UUID,
     page: int,
     page_size: int,
-    tier_filter: Optional[ScoreTier],
-    sector_filter: Optional[str],
+    tier_filter: ScoreTier | None,
+    sector_filter: str | None,
 ) -> LeadListResponse:
     """List leads with pagination and filters."""
     leads, total = await lead_service.list_leads(
         db, project_id, page, page_size, tier_filter, sector_filter
     )
     return LeadListResponse(
-        items=[LeadResponse.model_validate(l) for l in leads],
+        items=[LeadResponse.model_validate(lead) for lead in leads],
         total=total,
         page=page,
         page_size=page_size,
     )
 
 
-async def handle_get_lead(
-    db: AsyncSession, lead_id: uuid.UUID
-) -> LeadResponse:
+async def handle_get_lead(db: AsyncSession, lead_id: uuid.UUID) -> LeadResponse:
     """Fetch lead by ID or raise 404."""
     lead = await lead_service.get_lead(db, lead_id)
     if lead is None:
@@ -80,9 +77,7 @@ async def handle_update_lead(
     return LeadResponse.model_validate(updated)
 
 
-async def handle_delete_lead(
-    db: AsyncSession, lead_id: uuid.UUID
-) -> dict[str, str]:
+async def handle_delete_lead(db: AsyncSession, lead_id: uuid.UUID) -> dict[str, str]:
     """RGPD delete — permanently remove lead data."""
     lead = await lead_service.get_lead(db, lead_id)
     if lead is None:

@@ -10,10 +10,10 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
 
+from database.models_orm import CampaignStatus
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,6 @@ from backend.api.v1.models.campaign import (
     CampaignUpdate,
 )
 from backend.api.v1.services import campaign_service
-from database.models_orm import CampaignStatus
 
 
 async def handle_create_campaign(
@@ -41,7 +40,7 @@ async def handle_list_campaigns(
     project_id: uuid.UUID,
     page: int,
     page_size: int,
-    status_filter: Optional[CampaignStatus],
+    status_filter: CampaignStatus | None,
 ) -> CampaignListResponse:
     """List campaigns with pagination and optional status filter."""
     campaigns, total = await campaign_service.list_campaigns(
@@ -106,7 +105,7 @@ async def handle_launch_campaign(
     launched = await campaign_service.launch_campaign(db, campaign)
 
     # Fire Celery workflow asynchronously
-    job_id: Optional[uuid.UUID] = None
+    job_id: uuid.UUID | None = None
     try:
         from microservices.workflow import run_l2c_pipeline
 
@@ -118,7 +117,7 @@ async def handle_launch_campaign(
     return CampaignLaunchResponse(
         campaign_id=launched.id,
         status=launched.status,
-        launched_at=launched.launched_at or datetime.now(timezone.utc),
+        launched_at=launched.launched_at or datetime.now(UTC),
         job_id=job_id,
         message="Campaign launched. Workflow pipeline initiated.",
     )

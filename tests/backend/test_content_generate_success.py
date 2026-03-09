@@ -29,10 +29,11 @@ async def test_generate_post_returns_string():
         openai_instance.chat.completions.create = AsyncMock(return_value=mock_choice)
         mock_client.return_value = openai_instance
 
-        result = await generate_post("SaaS", "professional")
+        result = await generate_post(None, "professional", sector="SaaS")
 
-    assert isinstance(result, str)
-    assert len(result) > 0
+    assert isinstance(result, dict)
+    assert isinstance(result["text"], str)
+    assert len(result["text"]) > 0
 
 
 @pytest.mark.asyncio
@@ -56,7 +57,8 @@ async def test_generate_post_returns_fallback_on_api_error():
             side_effect=Exception("Local down too")
         )
 
-        result = await generate_post("SaaS", "professional")
+        result = await generate_post(None, "professional", sector="SaaS")
 
-    assert isinstance(result, str)
-    assert len(result) > 0
+    assert isinstance(result, dict)
+    assert result["from_fallback"] is True
+    assert len(result["text"]) > 0

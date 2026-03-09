@@ -11,13 +11,12 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from loguru import logger
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
 from backend.api.v1.services.auth_service import decode_token
@@ -51,7 +50,7 @@ def _is_public_path(path: str) -> bool:
 # FastAPI dependency — extract and validate JWT
 # ---------------------------------------------------------------------------
 async def get_current_user_id(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> uuid.UUID:
     """
     FastAPI dependency that validates the Bearer JWT and returns the user UUID.
@@ -85,7 +84,7 @@ async def get_current_user_id(
 
 
 async def get_current_user_role(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> str:
     """
     FastAPI dependency that extracts the user role from JWT.
@@ -117,6 +116,7 @@ def require_role(required_role: str):  # type: ignore[no-untyped-def]
         async def admin_endpoint(role: str = Depends(require_role("admin"))):
             ...
     """
+
     async def _check_role(
         role: str = Depends(get_current_user_role),
     ) -> str:
@@ -142,7 +142,9 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
     via `get_current_user_id` dependency) but ensures TLS is required.
     """
 
-    async def dispatch(self, request: Request, call_next: object) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         """Enforce HTTPS in production environment."""
         if settings.is_production:
             # Check for forwarded proto (behind reverse proxy)
@@ -153,6 +155,8 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
                 return JSONResponse(
                     status_code=301,
                     content={"detail": "HTTPS required in production."},
-                    headers={"Location": str(request.url).replace("http://", "https://")},
+                    headers={
+                        "Location": str(request.url).replace("http://", "https://")
+                    },
                 )
-        return await call_next(request)  # type: ignore[call-arg]
+        return await call_next(request)

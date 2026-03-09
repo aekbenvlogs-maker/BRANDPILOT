@@ -58,7 +58,9 @@ def task_send_email(self: Any, email_id: str) -> bool:
         raise self.retry(exc=exc)
 
 
-@celery_app.task(bind=True, name="bs_email.create_sequence", max_retries=3, default_retry_delay=30)
+@celery_app.task(
+    bind=True, name="bs_email.create_sequence", max_retries=3, default_retry_delay=30
+)
 def task_create_sequence(
     self: Any,
     campaign_data: dict[str, Any],
@@ -78,10 +80,14 @@ def task_create_sequence(
     """
     from microservices.bs_email.service import create_sequence
 
-    logger.info("[bs_email] Task create_sequence | campaign={}", campaign_data.get("name"))
+    logger.info(
+        "[bs_email] Task create_sequence | campaign={}", campaign_data.get("name")
+    )
     try:
         loop = asyncio.new_event_loop()
-        result = loop.run_until_complete(create_sequence(campaign_data, leads, template_html))
+        result = loop.run_until_complete(
+            create_sequence(campaign_data, leads, template_html)
+        )
         loop.close()
         return result
     except Exception as exc:

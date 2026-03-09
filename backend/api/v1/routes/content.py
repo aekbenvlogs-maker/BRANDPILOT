@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import uuid
 
+from database.connection import get_db_session
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +26,6 @@ from backend.api.v1.models.content import (
     ContentListResponse,
 )
 from backend.middleware.auth import get_current_user_id
-from database.connection import get_db_session
 
 router = APIRouter()
 

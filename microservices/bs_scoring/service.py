@@ -10,7 +10,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
+import uuid
 
 from loguru import logger
 
@@ -32,8 +34,62 @@ _FALLBACK_THRESHOLDS: dict[str, int] = {
 }
 
 
-def _get_weights() -> dict[str, float]:
-    """Return scoring weights from the active vertical configuration."""
+def _get_weights(project_id: str | None = None) -> dict[str, float]:
+    """
+    Return scoring weights. Priority order:
+    1. ScoringWeights DB row for the project (feedback-loop overrides)
+    2. Active vertical YAML (settings.scoring_weights)
+    3. Hardcoded fallback
+
+    Args:
+        project_id: Optional project UUID string. When provided, the DB is
+                    queried first so feedback-loop adjustments are applied.
+    """
+    if project_id:
+        try:
+            from database.connection import db_session
+            from database.models_orm import ScoringWeights
+            from sqlalchemy import select
+
+            async def _fetch() -> dict[str, float] | None:
+                async with db_session() as session:
+                    result = await session.execute(
+                        select(ScoringWeights).where(
+                            ScoringWeights.project_id == uuid.UUID(project_id)
+                        )
+                    )
+                    row = result.scalar_one_or_none()
+                    if row:
+                        return {
+                            "sector": float(row.sector_w),
+                            "company_size": float(row.company_size_w),
+                            "engagement": float(row.engagement_w),
+                            "source": float(row.source_w),
+                        }
+                    return None
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Called from sync context inside async loop — use thread executor
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                        fut = ex.submit(asyncio.run, _fetch())
+                        db_weights = fut.result(timeout=2)
+                else:
+                    db_weights = loop.run_until_complete(_fetch())
+                if db_weights:
+                    return db_weights
+            except Exception as db_exc:
+                logger.debug(
+                    "[bs_scoring] DB weights fetch failed, falling back | error={}",
+                    db_exc,
+                )
+        except Exception as import_exc:
+            logger.debug("[bs_scoring] DB import error | {}", import_exc)
+
+    # Fall back to YAML vertical config
     try:
         from configs.settings import get_settings
 
@@ -58,6 +114,7 @@ def _get_thresholds() -> dict[str, int]:
             exc,
         )
         return _FALLBACK_THRESHOLDS
+
 
 # Sector importance mapping (B2B focus)
 _SECTOR_SCORES: dict[str, int] = {
@@ -137,7 +194,9 @@ def score_lead(lead: dict[str, Any]) -> int:
     weights = _get_weights()
     weighted = sum(breakdown[k] * weights[k] for k in breakdown)
     final_score = round(weighted)
-    logger.debug("[bs_scoring] score_lead | lead_id={} | score={}", lead.get("id"), final_score)
+    logger.debug(
+        "[bs_scoring] score_lead | lead_id={} | score={}", lead.get("id"), final_score
+    )
     return final_score
 
 
@@ -157,7 +216,7 @@ def rank_leads(leads: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if "score" not in lead_copy:
             lead_copy["score"] = score_lead(lead_copy)
         scored.append(lead_copy)
-    scored.sort(key=lambda l: l["score"], reverse=True)
+    scored.sort(key=lambda x: x["score"], reverse=True)
     logger.info("[bs_scoring] rank_leads | {} leads ranked", len(scored))
     return scored
 
@@ -216,17 +275,19 @@ def explain_score(lead: dict[str, Any]) -> dict[str, Any]:
         "tier": tier,
         "improvement_hints": hints,
         "warning": (
-            "Partial score — missing fields: "
-            + ", ".join(
-                f
-                for f, v in [
-                    ("company_size", lead.get("company_size")),
-                    ("email_opens", lead.get("email_opens", 0)),
-                ]
-                if not v
+            (
+                "Partial score — missing fields: "
+                + ", ".join(
+                    f
+                    for f, v in [
+                        ("company_size", lead.get("company_size")),
+                        ("email_opens", lead.get("email_opens", 0)),
+                    ]
+                    if not v
+                )
             )
-        )
-        if not lead.get("company_size")
-        or (lead.get("email_opens", 0) == 0 and lead.get("email_clicks", 0) == 0)
-        else None,
+            if not lead.get("company_size")
+            or (lead.get("email_opens", 0) == 0 and lead.get("email_clicks", 0) == 0)
+            else None
+        ),
     }

@@ -99,7 +99,9 @@ def init_db(
         expire_on_commit=False,
     )
 
-    logger.info("[BRANDSCALE] Database engine initialised → {}", database_url.split("@")[-1])
+    logger.info(
+        "[BRANDSCALE] Database engine initialised → {}", database_url.split("@")[-1]
+    )
 
 
 async def close_db() -> None:

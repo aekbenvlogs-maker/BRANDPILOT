@@ -10,16 +10,18 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
 
+from database.models_orm import Content, ContentType
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.v1.models.content import ContentGenerateRequest, ContentGenerateResponse
-from database.models_orm import Content, ContentType
+from backend.api.v1.models.content import (
+    ContentGenerateRequest,
+    ContentGenerateResponse,
+)
 
 
 async def generate_content(
@@ -39,10 +41,10 @@ async def generate_content(
         ContentGenerateResponse with generated text and metadata.
     """
     from microservices.bs_ai_text.service import (
-        generate_post,
-        generate_email_content,
         generate_ad_copy,
+        generate_email_content,
         generate_newsletter,
+        generate_post,
     )
 
     content_type = request.content_type
@@ -50,9 +52,9 @@ async def generate_content(
     lead_id = request.lead_id
 
     # Call the appropriate microservice function
-    body_text: Optional[str] = None
-    tokens_used: Optional[int] = None
-    cost_usd: Optional[float] = None
+    body_text: str | None = None
+    tokens_used: int | None = None
+    cost_usd: float | None = None
     from_fallback = False
 
     try:
@@ -116,7 +118,9 @@ async def generate_content(
 
     logger.info(
         "[BRANDSCALE] Content generated | id={} type={} fallback={}",
-        content.id, content_type.value, from_fallback,
+        content.id,
+        content_type.value,
+        from_fallback,
     )
 
     return ContentGenerateResponse(
@@ -125,7 +129,7 @@ async def generate_content(
         body_text=body_text,
         tokens_used=tokens_used,
         cost_usd=cost_usd,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         from_fallback=from_fallback,
     )
 

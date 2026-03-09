@@ -10,15 +10,14 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
+import uuid
 
+from database.models_orm import WorkflowJob
 from fastapi import HTTPException, status
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from database.models_orm import WorkflowJob
 
 
 async def handle_run_workflow(
@@ -56,7 +55,9 @@ async def handle_run_workflow(
     await db.flush()
     await db.refresh(job)
 
-    logger.info("[BRANDSCALE] Workflow started | job_id={} campaign={}", job.id, campaign_id)
+    logger.info(
+        "[BRANDSCALE] Workflow started | job_id={} campaign={}", job.id, campaign_id
+    )
 
     return {
         "job_id": str(job.id),
@@ -80,9 +81,7 @@ async def handle_get_workflow_status(
     Returns:
         Dict with job status details.
     """
-    result = await db.execute(
-        select(WorkflowJob).where(WorkflowJob.id == job_id)
-    )
+    result = await db.execute(select(WorkflowJob).where(WorkflowJob.id == job_id))
     job = result.scalar_one_or_none()
 
     if job is None:

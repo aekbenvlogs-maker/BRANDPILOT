@@ -15,9 +15,9 @@ import json
 from typing import Any
 
 import boto3
-import redis.asyncio as aioredis
 from loguru import logger
 from openai import AsyncOpenAI
+import redis.asyncio as aioredis
 
 from configs.ai_config import get_model_config, get_openai_client
 from configs.settings import get_settings
@@ -43,7 +43,9 @@ async def _set_cached(redis: aioredis.Redis, key: str, value: str) -> None:
     await redis.setex(key, _CACHE_TTL, value.encode())
 
 
-async def generate_video_script(lead_data: dict[str, Any], campaign_data: dict[str, Any]) -> str:
+async def generate_video_script(
+    lead_data: dict[str, Any], campaign_data: dict[str, Any]
+) -> str:
     """
     Generate a short marketing video script using AI.
 
@@ -67,12 +69,12 @@ async def generate_video_script(lead_data: dict[str, Any], campaign_data: dict[s
     cached = await _get_cached(redis, key)
     if cached:
         logger.debug("[bs_ai_video] Cache hit | key={}", key[:16])
-        await redis.aclose()
+        await redis.aclose()  # type: ignore[attr-defined]
         return cached
     try:
         client: AsyncOpenAI = get_openai_client()
         response = await client.chat.completions.create(
-            model=model_cfg.model_name,
+            model=model_cfg.name,
             messages=[{"role": "user", "content": prompt}],
             temperature=model_cfg.temperature,
             max_tokens=model_cfg.max_tokens,
@@ -87,7 +89,7 @@ async def generate_video_script(lead_data: dict[str, Any], campaign_data: dict[s
             "[CTA] Book a free demo today."
         )
     await _set_cached(redis, key, script)
-    await redis.aclose()
+    await redis.aclose()  # type: ignore[attr-defined]
     return script
 
 
@@ -108,20 +110,23 @@ async def render_video(script: str, template: str = "default") -> str:
         s3 = boto3.client(
             "s3",
             endpoint_url=settings.s3_endpoint_url or None,
-            aws_access_key_id=settings.s3_access_key,
-            aws_secret_access_key=settings.s3_secret_key,
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key,
             region_name=settings.s3_region,
         )
         # In a real scenario, integrate a video rendering API here.
         # We upload a placeholder JSON manifest so S3 path is valid.
         manifest = json.dumps({"script": script[:200], "template": template})
         s3.put_object(
-            Bucket=settings.s3_bucket,
+            Bucket=settings.s3_bucket_name,
             Key=s3_key,
             Body=manifest.encode(),
             ContentType="application/json",
         )
-        base = settings.s3_endpoint_url or f"https://{settings.s3_bucket}.s3.amazonaws.com"
+        base = (
+            settings.s3_endpoint_url
+            or f"https://{settings.s3_bucket_name}.s3.amazonaws.com"
+        )
         url = f"{base}/{s3_key}"
     except Exception as exc:
         logger.error("[bs_ai_video] S3 upload failed | {}", str(exc))

@@ -10,11 +10,11 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 import hashlib
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional
 
+from database.models_orm import RefreshToken, User
 from jose import JWTError, jwt
 from loguru import logger
 from passlib.context import CryptContext
@@ -22,7 +22,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from configs.settings import get_settings
-from database.models_orm import RefreshToken, User
 
 settings = get_settings()
 
@@ -56,14 +55,12 @@ def create_access_token(user_id: uuid.UUID, role: str) -> str:
     Returns:
         Signed JWT string.
     """
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     payload = {
         "sub": str(user_id),
         "role": role,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
         "type": "access",
     }
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
@@ -79,13 +76,11 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
     Returns:
         Signed JWT string.
     """
-    expire = datetime.now(timezone.utc) + timedelta(
-        days=settings.refresh_token_expire_days
-    )
+    expire = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
     payload = {
         "sub": str(user_id),
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
         "jti": str(uuid.uuid4()),  # unique token ID for revocation
         "type": "refresh",
     }
@@ -116,9 +111,7 @@ def _hash_token(token: str) -> str:
 # ---------------------------------------------------------------------------
 # Database operations
 # ---------------------------------------------------------------------------
-async def authenticate_user(
-    db: AsyncSession, email: str, password: str
-) -> Optional[User]:
+async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
     """
     Authenticate user by email + password.
 
@@ -138,15 +131,13 @@ async def authenticate_user(
         return None
 
     # Update last login timestamp
-    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(UTC)
     await db.flush()
     logger.info("[BRANDSCALE] User authenticated | id={} role={}", user.id, user.role)
     return user
 
 
-async def store_refresh_token(
-    db: AsyncSession, user_id: uuid.UUID, token: str
-) -> None:
+async def store_refresh_token(db: AsyncSession, user_id: uuid.UUID, token: str) -> None:
     """
     Persist a refresh token hash to the database.
 
@@ -155,9 +146,7 @@ async def store_refresh_token(
         user_id: Owner user UUID.
         token:   Raw refresh token string (stored as hash).
     """
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        days=settings.refresh_token_expire_days
-    )
+    expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
     record = RefreshToken(
         user_id=user_id,
         token_hash=_hash_token(token),
@@ -167,9 +156,7 @@ async def store_refresh_token(
     await db.flush()
 
 
-async def validate_refresh_token(
-    db: AsyncSession, token: str
-) -> Optional[User]:
+async def validate_refresh_token(db: AsyncSession, token: str) -> User | None:
     """
     Validate a refresh token and return the associated user.
 
@@ -194,7 +181,7 @@ async def validate_refresh_token(
         select(RefreshToken).where(
             RefreshToken.token_hash == token_hash,
             RefreshToken.revoked.is_(False),
-            RefreshToken.expires_at > datetime.now(timezone.utc),
+            RefreshToken.expires_at > datetime.now(UTC),
         )
     )
     stored = result.scalar_one_or_none()
