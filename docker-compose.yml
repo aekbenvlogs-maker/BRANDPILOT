@@ -120,6 +120,162 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Celery Worker ─ bs_ai_image ──────────────────────────────────
+  celery_ai_image:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: >
+      celery -A microservices.bs_ai_image.worker.celery_app worker
+      --loglevel=info --concurrency=2 --hostname=worker_ai_image@%h
+    environment:
+      <<: *common-env
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery Worker ─ bs_ai_video ──────────────────────────────────
+  celery_ai_video:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: >
+      celery -A microservices.bs_ai_video.worker.celery_app worker
+      --loglevel=info --concurrency=2 --hostname=worker_ai_video@%h
+    environment:
+      <<: *common-env
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Microservice ─ bs_ai_text (port 8001) ────────────────────────
+  bs_ai_text:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: uvicorn microservices.bs_ai_text.main:app --host 0.0.0.0 --port 8001
+    environment:
+      <<: *common-env
+    env_file: .env
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import httpx; httpx.get('http://localhost:8001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Microservice ─ bs_ai_image (port 8002) ───────────────────────
+  bs_ai_image:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: uvicorn microservices.bs_ai_image.main:app --host 0.0.0.0 --port 8002
+    environment:
+      <<: *common-env
+    env_file: .env
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import httpx; httpx.get('http://localhost:8002/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Microservice ─ bs_ai_video (port 8003) ───────────────────────
+  bs_ai_video:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: uvicorn microservices.bs_ai_video.main:app --host 0.0.0.0 --port 8003
+    environment:
+      <<: *common-env
+    env_file: .env
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import httpx; httpx.get('http://localhost:8003/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Microservice ─ bs_email (port 8004) ──────────────────────────
+  bs_email:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: uvicorn microservices.bs_email.main:app --host 0.0.0.0 --port 8004
+    environment:
+      <<: *common-env
+    env_file: .env
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import httpx; httpx.get('http://localhost:8004/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Microservice ─ bs_scoring (port 8005) ────────────────────────
+  bs_scoring:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: uvicorn microservices.bs_scoring.main:app --host 0.0.0.0 --port 8005
+    environment:
+      <<: *common-env
+    env_file: .env
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import httpx; httpx.get('http://localhost:8005/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
   # ── Celery Beat (periodic tasks — RGPD purge etc.) ──────────────────
   celery_beat:
     build:
