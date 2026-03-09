@@ -24,7 +24,7 @@ interface CampaignAnalytics {
 export function AnalyticsCharts() {
   const { data, isLoading } = useSWR<{ items: CampaignAnalytics[] }>(
     "/api/v1/analytics",
-    (url: string) => apiFetch(url),
+    (url: string) => apiFetch<{ items: CampaignAnalytics[] }>(url),
   );
 
   if (isLoading) {

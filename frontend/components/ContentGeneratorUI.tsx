@@ -35,7 +35,7 @@ export function ContentGeneratorUI() {
 
   const { data: history } = useSWR<{ items: ContentResponse[] }>(
     campaignId ? `/api/v1/content/${campaignId}` : null,
-    (url: string) => apiFetch(url),
+    (url: string) => apiFetch<{ items: ContentResponse[] }>(url),
   );
 
   async function handleGenerate(e: React.FormEvent) {

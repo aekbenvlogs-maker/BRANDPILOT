@@ -25,14 +25,14 @@ export default function useAnalytics(campaignId?: string) {
   const summaryKey = "/api/v1/analytics/summary";
   const campaignKey = campaignId ? `/api/v1/analytics/${campaignId}` : null;
 
-  const { data: summary, isLoading: summaryLoading } = useSWR<AnalyticsSummary>(
+  const { data: summary, isLoading: summaryLoading } = useSWR<AnalyticsSummary, Error>(
     summaryKey,
-    (url: string) => apiFetch(url),
+    (url: string) => apiFetch<AnalyticsSummary>(url),
     { refreshInterval: 60_000 },
   );
 
   const { data: campaignData, isLoading: campaignLoading } =
-    useSWR<CampaignAnalytics>(campaignKey, (url: string) => apiFetch(url));
+    useSWR<CampaignAnalytics>(campaignKey, (url: string) => apiFetch<CampaignAnalytics>(url));
 
   return {
     summary,

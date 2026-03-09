@@ -27,7 +27,7 @@ export default function useCampaigns(projectId?: string) {
 
   const { data, error, isLoading, mutate } = useSWR<CampaignsResponse>(
     url,
-    (u: string) => apiFetch(u),
+    (u: string) => apiFetch<CampaignsResponse>(u),
   );
 
   return {

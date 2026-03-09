@@ -44,7 +44,7 @@ function ProjectCard({
 export default function ProjectsPage() {
   const { data, isLoading } = useSWR<{ items: Project[] }>(
     "/api/v1/projects",
-    (url: string) => apiFetch(url),
+    (url: string) => apiFetch<{ items: Project[] }>(url),
   );
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");

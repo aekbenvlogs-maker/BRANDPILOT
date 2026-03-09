@@ -29,7 +29,7 @@ export default function useLeads(projectId?: string) {
 
   const { data, error, isLoading, mutate } = useSWR<LeadsResponse>(
     url,
-    (u: string) => apiFetch(u),
+    (u: string) => apiFetch<LeadsResponse>(u),
   );
 
   return {

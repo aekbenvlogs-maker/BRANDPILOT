@@ -46,7 +46,7 @@ function JobRow({ job }: { job: WorkflowJob }) {
 export function AutomationMonitor() {
   const { data, isLoading, mutate } = useSWR<{ items: WorkflowJob[] }>(
     "/api/v1/workflows",
-    (url: string) => apiFetch(url),
+    (url: string) => apiFetch<{ items: WorkflowJob[] }>(url),
     { refreshInterval: 5_000 },
   );
 
