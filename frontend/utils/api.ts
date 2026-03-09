@@ -30,6 +30,16 @@ export async function apiFetch<T = unknown>(
 
   const response = await fetch(url, { ...options, headers });
 
+  if (response.status === 401) {
+    // Token expired or missing — redirect to login
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("bs_token");
+      localStorage.removeItem("bs_refresh_token");
+      window.location.href = "/login";
+    }
+    throw new Error("Unauthorized");
+  }
+
   if (!response.ok) {
     const detail = await response.text().catch(() => "Unknown error");
     throw new Error(
