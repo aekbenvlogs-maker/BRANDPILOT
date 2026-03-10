@@ -23,9 +23,8 @@ interface LeadsResponse {
 }
 
 export default function useLeads(projectId?: string) {
-  const url = projectId
-    ? `/api/v1/leads?project_id=${projectId}`
-    : "/api/v1/leads";
+  // Don't fetch without a project_id — backend requires it
+  const url = projectId ? `/api/v1/leads?project_id=${projectId}` : null;
 
   const { data, error, isLoading, mutate } = useSWR<LeadsResponse>(
     url,

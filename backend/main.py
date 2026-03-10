@@ -24,6 +24,7 @@ from backend.api.v1.routes import (
     analytics,
     auth,
     campaigns,
+    campaigns_agent,
     content,
     health,
     leads,
@@ -142,6 +143,11 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(projects.router, prefix=f"{prefix}/projects", tags=["Projects"])
     app.include_router(
         campaigns.router, prefix=f"{prefix}/campaigns", tags=["Campaigns"]
+    )
+    app.include_router(
+        campaigns_agent.router,
+        prefix=f"{prefix}/campaigns/agent",
+        tags=["Campaigns — Agent"],
     )
     app.include_router(leads.router, prefix=f"{prefix}/leads", tags=["Leads"])
     app.include_router(content.router, prefix=f"{prefix}/content", tags=["Content"])

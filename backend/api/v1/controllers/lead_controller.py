@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import uuid
 
-from database.models_orm import ScoreTier
+from database.crypto import decrypt_pii
+from database.models_orm import Lead, ScoreTier
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,10 +27,31 @@ from backend.api.v1.models.lead import (
 from backend.api.v1.services import lead_service
 
 
+def _lead_to_response(lead: Lead) -> LeadResponse:
+    """Convert ORM Lead to LeadResponse, decrypting PII fields."""
+    return LeadResponse(
+        id=lead.id,
+        project_id=lead.project_id,
+        email=decrypt_pii(lead.email) or lead.email,  # type: ignore[arg-type]
+        first_name=decrypt_pii(lead.first_name) if lead.first_name else None,
+        last_name=decrypt_pii(lead.last_name) if lead.last_name else None,
+        company=lead.company,
+        sector=lead.sector,
+        source=lead.source,
+        score=lead.score,
+        score_tier=lead.score_tier,
+        score_updated_at=lead.score_updated_at,
+        opt_in=lead.opt_in,
+        consent_date=lead.consent_date,
+        created_at=lead.created_at,
+        updated_at=lead.updated_at,
+    )
+
+
 async def handle_create_lead(db: AsyncSession, data: LeadCreate) -> LeadResponse:
     """Create a lead with encrypted PII."""
     lead = await lead_service.create_lead(db, data)
-    return LeadResponse.model_validate(lead)
+    return _lead_to_response(lead)
 
 
 async def handle_list_leads(
@@ -45,7 +67,7 @@ async def handle_list_leads(
         db, project_id, page, page_size, tier_filter, sector_filter
     )
     return LeadListResponse(
-        items=[LeadResponse.model_validate(lead) for lead in leads],
+        items=[_lead_to_response(lead) for lead in leads],
         total=total,
         page=page,
         page_size=page_size,
@@ -60,7 +82,7 @@ async def handle_get_lead(db: AsyncSession, lead_id: uuid.UUID) -> LeadResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Lead {lead_id} not found.",
         )
-    return LeadResponse.model_validate(lead)
+    return _lead_to_response(lead)
 
 
 async def handle_update_lead(
@@ -74,7 +96,7 @@ async def handle_update_lead(
             detail=f"Lead {lead_id} not found.",
         )
     updated = await lead_service.update_lead(db, lead, data)
-    return LeadResponse.model_validate(updated)
+    return _lead_to_response(updated)
 
 
 async def handle_delete_lead(db: AsyncSession, lead_id: uuid.UUID) -> dict[str, str]:

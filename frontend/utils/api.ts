@@ -1,15 +1,62 @@
 // ============================================================
-// PROJECT      : BRANDSCALE — AI Brand Scaling Tool
+// PROJECT      : BRANDPILOT
 // FILE         : frontend/utils/api.ts
-// DESCRIPTION  : Typed fetch wrapper for BRANDSCALE API
+// DESCRIPTION  : Typed fetch wrapper — production-grade, typed errors
 // ============================================================
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+// ---------------------------------------------------------------------------
+// Typed error classes
+// ---------------------------------------------------------------------------
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export class ForbiddenError extends ApiError {
+  constructor(message = "Forbidden") {
+    super(403, message);
+    this.name = "ForbiddenError";
+  }
+}
+
+export interface ValidationFieldError {
+  field: string;
+  message: string;
+}
+
+export class ValidationError extends ApiError {
+  constructor(public readonly errors: ValidationFieldError[]) {
+    super(422, "Validation error");
+    this.name = "ValidationError";
+  }
+}
+
+export class ServerError extends ApiError {
+  constructor(status: number) {
+    super(status, `Server error ${status}`);
+    this.name = "ServerError";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Core fetch wrapper
+// ---------------------------------------------------------------------------
+
 /**
- * Fetch wrapper that prepends API_BASE, adds JSON headers,
- * injects the stored auth token, and throws on non-2xx.
+ * Centralised fetch wrapper.
+ * - Prepends NEXT_PUBLIC_API_BASE_URL
+ * - Injects Bearer token from localStorage
+ * - Dispatches "auth:expired" custom event on 401
+ * - Throws typed errors for 403 / 422 / 4xx / 5xx
  */
 export async function apiFetch<T = unknown>(
   path: string,
@@ -31,20 +78,37 @@ export async function apiFetch<T = unknown>(
   const response = await fetch(url, { ...options, headers });
 
   if (response.status === 401) {
-    // Token expired or missing — redirect to login
     if (typeof window !== "undefined") {
       localStorage.removeItem("bs_token");
       localStorage.removeItem("bs_refresh_token");
-      window.location.href = "/login";
+      window.dispatchEvent(new CustomEvent("auth:expired"));
     }
-    throw new Error("Unauthorized");
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  if (response.status === 403) {
+    const detail = await response.text().catch(() => "Forbidden");
+    throw new ForbiddenError(detail);
+  }
+
+  if (response.status === 422) {
+    const body = await response.json().catch(() => ({ detail: [] })) as {
+      detail?: Array<{ loc: string[]; msg: string }>;
+    };
+    const errors: ValidationFieldError[] = (body.detail ?? []).map((e) => ({
+      field: e.loc?.slice(-1)[0] ?? "unknown",
+      message: e.msg,
+    }));
+    throw new ValidationError(errors);
+  }
+
+  if (response.status >= 500) {
+    throw new ServerError(response.status);
   }
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "Unknown error");
-    throw new Error(
-      `[apiFetch] ${response.status} ${response.statusText}: ${detail}`,
-    );
+    throw new ApiError(response.status, detail);
   }
 
   const contentType = response.headers.get("content-type") ?? "";
@@ -54,18 +118,49 @@ export async function apiFetch<T = unknown>(
   return response.text() as unknown as T;
 }
 
-/**
- * Store authentication token in localStorage.
- */
+// ---------------------------------------------------------------------------
+// HTTP method helpers
+// ---------------------------------------------------------------------------
+
+export function apiGet<T = unknown>(path: string): Promise<T> {
+  return apiFetch<T>(path, { method: "GET" });
+}
+
+export function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "POST",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+export function apiPut<T = unknown>(path: string, body?: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "PUT",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+export function apiPatch<T = unknown>(path: string, body?: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: "PATCH",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+export function apiDelete<T = unknown>(path: string): Promise<T> {
+  return apiFetch<T>(path, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
+// Token helpers (kept for backwards-compatibility)
+// ---------------------------------------------------------------------------
+
 export function setToken(token: string): void {
   if (typeof window !== "undefined") {
     localStorage.setItem("bs_token", token);
   }
 }
 
-/**
- * Clear stored authentication token.
- */
 export function clearToken(): void {
   if (typeof window !== "undefined") {
     localStorage.removeItem("bs_token");

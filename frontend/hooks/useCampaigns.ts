@@ -21,9 +21,8 @@ interface CampaignsResponse {
 }
 
 export default function useCampaigns(projectId?: string) {
-  const url = projectId
-    ? `/api/v1/campaigns?project_id=${projectId}`
-    : "/api/v1/campaigns";
+  // Don't fetch without a project_id — backend requires it
+  const url = projectId ? `/api/v1/campaigns?project_id=${projectId}` : null;
 
   const { data, error, isLoading, mutate } = useSWR<CampaignsResponse>(
     url,

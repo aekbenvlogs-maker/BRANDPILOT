@@ -106,6 +106,9 @@ force-sort-within-sections = true
 asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "security: marks tests that verify critical security invariants (HITL gate, ownership, status guards)",
+]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
