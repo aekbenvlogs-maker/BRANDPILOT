@@ -46,16 +46,64 @@ export function Badge({
   );
 }
 
-// Tier badge helpers
-export function TierBadge({ tier }: { tier: "hot" | "warm" | "cold" | string | null }) {
+// ---------------------------------------------------------------------------
+// Tier badge — compact solid A / B / C pills with colored dot
+// ---------------------------------------------------------------------------
+
+const TIER_BADGE_CFG: Record<
+  string,
+  { bg: string; text: string; dot: string; label: string }
+> = {
+  hot: {
+    bg:    "bg-emerald-500 dark:bg-emerald-600",
+    text:  "text-white",
+    dot:   "bg-emerald-200",
+    label: "A",
+  },
+  warm: {
+    bg:    "bg-amber-400 dark:bg-amber-500",
+    text:  "text-white",
+    dot:   "bg-amber-100",
+    label: "B",
+  },
+  cold: {
+    bg:    "bg-rose-500 dark:bg-rose-600",
+    text:  "text-white",
+    dot:   "bg-rose-200",
+    label: "C",
+  },
+};
+
+export function TierBadge({
+  tier,
+}: {
+  tier: "hot" | "warm" | "cold" | string | null;
+}) {
   if (!tier) return null;
-  const map: Record<string, { variant: BadgeProps["variant"]; label: string }> = {
-    hot:  { variant: "success", label: "Tier A" },
-    warm: { variant: "warning", label: "Tier B" },
-    cold: { variant: "error",   label: "Tier C" },
-  };
-  const config = map[tier] ?? { variant: "neutral", label: tier };
-  return <Badge variant={config.variant}>{config.label}</Badge>;
+  const cfg = TIER_BADGE_CFG[tier];
+  if (!cfg) {
+    // Fallback for unknown tiers
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+        {tier}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={[
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold",
+        cfg.bg,
+        cfg.text,
+      ].join(" ")}
+    >
+      <span
+        className={["h-1.5 w-1.5 rounded-full", cfg.dot].join(" ")}
+        aria-hidden="true"
+      />
+      {cfg.label}
+    </span>
+  );
 }
 
 export default Badge;

@@ -148,6 +148,7 @@ export function NewLeadModal({
             size="md"
             loading={isSubmitting}
             disabled={!optIn || isSubmitting}
+            title={!optIn ? "Cochez le consentement RGPD pour activer" : undefined}
             onClick={() => void handleSubmit(onSubmit)()}
           >
             Créer

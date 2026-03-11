@@ -163,15 +163,16 @@ export function LeadTable({
     return (
       <th
         scope="col"
-        className="cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         onClick={() => toggleSort(key)}
         aria-sort={
-          isActive
-            ? sortDir === "asc"
-              ? "ascending"
-              : "descending"
-            : "none"
+          isActive ? (sortDir === "asc" ? "ascending" : "descending") : "none"
         }
+        className={[
+          "cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide transition-colors",
+          isActive
+            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
+            : "text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700/40 dark:hover:text-white",
+        ].join(" ")}
       >
         <span className="flex items-center gap-1">
           {label}
@@ -182,7 +183,7 @@ export function LeadTable({
               <ChevronDown className="h-3 w-3 text-indigo-500" aria-hidden="true" />
             )
           ) : (
-            <ChevronsUpDown className="h-3 w-3 opacity-30" aria-hidden="true" />
+            <ChevronsUpDown className="h-3 w-3 opacity-25" aria-hidden="true" />
           )}
         </span>
       </th>

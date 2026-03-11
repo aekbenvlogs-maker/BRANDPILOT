@@ -240,9 +240,9 @@ export function ImportCsvModal({
     onClose();
   }
 
-  const emailMapped = Object.values(fieldMap).includes(
-    fieldMap["email"] ?? "",
-  ) && fieldMap["email"] && fieldMap["email"] !== IGNORE_VALUE;
+  /** true only when email is mapped to a real CSV column (not ignored/blank) */
+  const emailMapped =
+    !!fieldMap["email"] && fieldMap["email"] !== IGNORE_VALUE;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
