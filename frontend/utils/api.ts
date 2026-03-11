@@ -81,6 +81,26 @@ export function clearToken(): void {
   if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
 }
 
+/**
+ * Convert any HeadersInit variant (or undefined) to Record<string, string>.
+ * Handles all three HeadersInit shapes without unsafe casts or `any`.
+ */
+function headersToRecord(h?: HeadersInit): Record<string, string> {
+  if (!h) return {};
+  if (h instanceof Headers) {
+    const rec: Record<string, string> = {};
+    h.forEach((value, key) => { rec[key] = value; });
+    return rec;
+  }
+  if (Array.isArray(h)) {
+    // h: string[][] — each element is [name, value]
+    const rec: Record<string, string> = {};
+    for (const pair of h) rec[pair[0]] = pair[1];
+    return rec;
+  }
+  return h; // narrowed: Record<string, string>
+}
+
 // ---------------------------------------------------------------------------
 // Response parser — shared between apiFetch and ApiClient
 // ---------------------------------------------------------------------------
@@ -180,14 +200,14 @@ export class ApiClient {
   // ── Internal fetch with refresh-retry ────────────────────────────────────
 
   private buildHeaders(
-    extra?: Record<string, string>,
+    extra?: HeadersInit,
     isFormData = false,
   ): Record<string, string> {
     const token = readToken();
     return {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(extra ?? {}),
+      ...headersToRecord(extra),
     };
   }
 
@@ -202,10 +222,8 @@ export class ApiClient {
     isRetry = false,
   ): Promise<T> {
     const isFormData = options.body instanceof FormData;
-    const headers = this.buildHeaders(
-      options.headers as Record<string, string> | undefined,
-      isFormData,
-    );
+    // buildHeaders accepts HeadersInit directly — no cast needed
+    const headers = this.buildHeaders(options.headers, isFormData);
 
     let response: Response;
     try {
@@ -250,11 +268,11 @@ export class ApiClient {
   }
 
   post<T = unknown>(path = "", body?: unknown): Promise<T> {
-    const isFormData = body instanceof FormData;
     return this._fetch<T>(path, {
       method: "POST",
-      body: isFormData
-        ? (body as FormData)
+      // Inline instanceof so TypeScript narrows body → FormData (no cast needed)
+      body: body instanceof FormData
+        ? body
         : body !== undefined
           ? JSON.stringify(body)
           : undefined,
@@ -320,7 +338,7 @@ export async function apiFetch<T = unknown>(
   const headers: Record<string, string> = {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers as Record<string, string>),
+    ...headersToRecord(options.headers),
   };
 
   const url = path.startsWith("http") ? path : `${BASE_URL}${path}`;
