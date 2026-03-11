@@ -20,7 +20,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { useProjects } from "@/hooks/useProjects";
-import { usePolling } from "@/hooks/useContentGeneration";
 import { apiPost, apiPatch } from "@/utils/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -325,27 +324,12 @@ export default function OnboardingPage() {
   const { projects, isLoading: projectsLoading }      = useProjects();
   const { showToast }                                  = useToast();
 
-  // Step 3: polling task state
-  const [taskId,          setTaskId]          = useState<string | null>(null);
-  const [isSubmittingGen, setIsSubmittingGen]  = useState(false);
+  // Step 3: sync generation state (backend synchrone — pas de task_id ni polling)
+  const [isSubmittingGen, setIsSubmittingGen] = useState(false);
+  const [genResult,       setGenResult]       = useState<{ text: string; hashtags: string[] } | null>(null);
+  const [genError,        setGenError]        = useState<string | null>(null);
 
-  const {
-    result:     pollResult,
-    status:     pollStatus,
-    isComplete: pollDone,
-    error:      pollError,
-  } = usePolling(taskId);
-
-  // Derived helpers consumed by the render
-  const isGenerating = isSubmittingGen || (taskId !== null && !pollDone);
-  const genResult =
-    pollDone && pollStatus !== "failed"
-      ? (pollResult as { text: string; hashtags: string[] } | undefined)
-      : null;
-  const genError =
-    pollDone && pollStatus === "failed"
-      ? (pollError?.message ?? "La génération a échoué.")
-      : null;
+  const isGenerating = isSubmittingGen;
 
   const [wiz, dispatch]       = useReducer(wizardReducer, initialState);
   const [isCreating, setIsCreating] = useState(false);
@@ -358,13 +342,6 @@ export default function OnboardingPage() {
       router.replace("/dashboard");
     }
   }, [authLoading, projectsLoading, projects, router]);
-
-  // Mark generation as successful when polling reaches a terminal success status
-  useEffect(() => {
-    if (pollDone && pollStatus !== "failed" && pollResult) {
-      dispatch({ type: "GEN_OK" });
-    }
-  }, [pollDone, pollStatus, pollResult]);
 
   // Step 1 form
   const {
@@ -429,30 +406,52 @@ export default function OnboardingPage() {
 
   async function onGenerate() {
     if (!wiz.brief.trim() || !wiz.projectId) return;
-    // Reset any previous task so polling doesn't flash stale data
-    setTaskId(null);
+    setGenResult(null);
+    setGenError(null);
     setIsSubmittingGen(true);
     try {
-      const platform = wiz.platforms[0] as
-        | "instagram"
-        | "tiktok"
-        | "youtube"
-        | "x"
-        | "email"
-        | "linkedin";
-      const res = await apiPost<{ task_id: string }>(
-        "/api/v1/content/text/generate",
+      const platform = (wiz.platforms[0] ?? "instagram") as
+        | "instagram" | "tiktok" | "youtube" | "x" | "email" | "linkedin";
+
+      const PLATFORM_TO_TYPE: Record<typeof platform, string> = {
+        instagram: "post",
+        tiktok:    "post",
+        youtube:   "video_script",
+        x:         "post",
+        linkedin:  "post",
+        email:     "email",
+      };
+
+      interface ContentGenerateApiResponse {
+        body_text:   string | null;
+        tokens_used: number | null;
+        cost_usd:    number | null;
+      }
+
+      // ✅ URL correcte : POST /api/v1/content/generate (synchrone)
+      // ✅ Body aligné sur ContentGenerateRequest
+      // ⚠️  campaign_id : l'onboarding n'a pas encore de campagne —
+      //     wiz.projectId est utilisé comme valeur provisoire
+      const resp = await apiPost<ContentGenerateApiResponse>(
+        "/api/v1/content/generate",
         {
+          content_type:        PLATFORM_TO_TYPE[platform],
+          campaign_id:         wiz.projectId,
           platform,
-          brief:      wiz.brief,
-          tone:       wiz.tone ?? undefined,
-          project_id: wiz.projectId,
+          tone:                wiz.tone     ?? "professionnel",
+          language:            "fr",
+          custom_instructions: wiz.brief,
+          lead_id:             null,
         },
       );
-      setTaskId(res.task_id);
-      // SWR usePolling takes over from here
-    } catch {
-      showToast("Erreur lors du lancement de la génération.", "error");
+
+      const mapped = { text: resp.body_text ?? "", hashtags: [] as string[] };
+      setGenResult(mapped);
+      dispatch({ type: "GEN_OK" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "La génération a échoué.";
+      setGenError(msg);
+      showToast(msg, "error");
     } finally {
       setIsSubmittingGen(false);
     }

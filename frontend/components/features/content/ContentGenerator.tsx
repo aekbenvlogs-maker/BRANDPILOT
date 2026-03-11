@@ -79,7 +79,7 @@ export function ContentGenerator({ projectId, defaultTone }: ContentGeneratorPro
 
   const onSubmit = async (data: GenerateFormData) => {
     setEditedText("");
-    await generate({ ...data, project_id: projectId });
+    await generate({ ...data, campaign_id: projectId ?? "" });
   };
 
   const handleCopy = async () => {

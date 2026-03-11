@@ -5,7 +5,7 @@
 // ============================================================
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import useSWR, { type KeyedMutator } from "swr";
 import { apiFetch, apiPost } from "@/utils/api";
 
@@ -13,12 +13,14 @@ import { apiFetch, apiPost } from "@/utils/api";
 // Types
 // ---------------------------------------------------------------------------
 
+/** Input consumed by the UI. `brief` maps to `custom_instructions` on the backend. */
 export interface GenerateTextInput {
-  platform: "instagram" | "tiktok" | "youtube" | "x" | "email" | "linkedin";
-  brief: string;
-  tone?: string;
-  length?: "short" | "medium" | "long";
-  project_id?: string;
+  campaign_id: string;
+  platform:    "instagram" | "tiktok" | "youtube" | "x" | "email" | "linkedin";
+  brief:       string;
+  tone?:       string;
+  lead_id?:    string | null;
+  language?:   string;
 }
 
 export interface GenerationResult {
@@ -55,49 +57,9 @@ export function useGenerateText(): {
   error: string | null;
   taskId: string | null;
 } {
-  const [taskId, setTaskId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<GenerationResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current !== null) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => stopPolling();
-  }, [stopPolling]);
-
-  const pollStatus = useCallback(
-    async (id: string) => {
-      try {
-        const status = await apiFetch<TaskStatus>(
-          `/api/v1/content/text/status/${id}`,
-        );
-
-        if (status.status === "completed" && status.result) {
-          stopPolling();
-          setResult(status.result);
-          setIsGenerating(false);
-          setTaskId(null);
-        } else if (status.status === "failed") {
-          stopPolling();
-          setError(status.error ?? "Generation failed");
-          setIsGenerating(false);
-          setTaskId(null);
-        }
-      } catch (err: unknown) {
-        stopPolling();
-        setError(err instanceof Error ? err.message : "Polling error");
-        setIsGenerating(false);
-      }
-    },
-    [stopPolling],
-  );
+  const [result,       setResult]       = useState<GenerationResult | null>(null);
+  const [error,        setError]        = useState<string | null>(null);
 
   const generate = useCallback(
     async (input: GenerateTextInput): Promise<void> => {
@@ -106,38 +68,78 @@ export function useGenerateText(): {
       setResult(null);
 
       try {
-        const { task_id } = await apiPost<{ task_id: string }>(
-          "/api/v1/content/text/generate",
-          input,
-        );
-        setTaskId(task_id);
+        // ✅ URL correcte : POST /api/v1/content/generate (synchrone — retourne le texte directement)
+        // ✅ Body aligné sur ContentGenerateRequest (Pydantic backend)
+        // ✅ brief → custom_instructions
+        // ✅ platform → content_type via mapper local
+        const PLATFORM_TO_TYPE: Record<GenerateTextInput["platform"], string> = {
+          instagram: "post",
+          tiktok:    "post",
+          youtube:   "video_script",
+          x:         "post",
+          linkedin:  "post",
+          email:     "email",
+        };
 
-        // Start polling every 2 seconds
-        pollingRef.current = setInterval(() => void pollStatus(task_id), 2000);
+        interface ContentGenerateApiResponse {
+          content_id:    string;
+          body_text:     string | null;
+          tokens_used:   number | null;
+          cost_usd:      number | null;
+          from_fallback: boolean;
+        }
+
+        const resp = await apiPost<ContentGenerateApiResponse>(
+          "/api/v1/content/generate",
+          {
+            content_type:        PLATFORM_TO_TYPE[input.platform],
+            campaign_id:         input.campaign_id,
+            lead_id:             input.lead_id ?? null,
+            platform:            input.platform,
+            tone:                input.tone     ?? "professional",
+            language:            input.language ?? "fr",
+            custom_instructions: input.brief,
+          },
+        );
+
+        setResult({
+          text:        resp.body_text ?? "",
+          hashtags:    [],
+          platform:    input.platform,
+          tokens_used: resp.tokens_used ?? 0,
+          cost_usd:    resp.cost_usd   ?? 0,
+        });
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to start generation");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossible de démarrer la génération.",
+        );
+      } finally {
         setIsGenerating(false);
       }
     },
-    [pollStatus],
+    [],
   );
 
-  return { generate, isGenerating, result, error, taskId };
+  return { generate, isGenerating, result, error, taskId: null };
 }
 
 // ---------------------------------------------------------------------------
 // useContentHistory
 // ---------------------------------------------------------------------------
 
-export function useContentHistory(projectId: string | undefined): {
+export function useContentHistory(campaignId: string | undefined): {
   data: ContentHistoryItem[] | null;
   history: ContentHistoryItem[];
   isLoading: boolean;
   error: Error | undefined;
   mutate: KeyedMutator<ContentHistoryItem[]>;
 } {
+  // ✅ URL correcte : GET /api/v1/content/:campaign_id (path param)
+  // ✅ SWR key = null si campaignId absent → 0 appel réseau
   const { data, error, isLoading, mutate } = useSWR<ContentHistoryItem[]>(
-    projectId ? `/api/v1/content/history/${projectId}` : null,
+    campaignId ? `/api/v1/content/${campaignId}` : null,
     (u: string) => apiFetch<ContentHistoryItem[]>(u),
     { revalidateOnFocus: false },
   );

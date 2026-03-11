@@ -5,7 +5,7 @@
 // DESCRIPTION  : 3-step AI content generator — Form → Generating → Result
 // ============================================================
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Instagram,
   Youtube,
@@ -25,9 +25,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiPost } from "@/utils/api";
-import { usePolling } from "@/hooks/useContentGeneration";
 import type { GenerationResult } from "@/hooks/useContentGeneration";
 import { useProjects } from "@/hooks/useProjects";
+import { useCampaigns } from "@/hooks/useCampaigns";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -120,14 +120,27 @@ const ROTATING_MESSAGES = [
 ];
 
 // ---------------------------------------------------------------------------
+// Platform → content_type mapper (module-level, used in onSubmit)
+// ---------------------------------------------------------------------------
+const PLATFORM_TO_CONTENT_TYPE: Record<Platform, string> = {
+  instagram: "post",
+  tiktok:    "post",
+  youtube:   "video_script",
+  x:         "post",
+  linkedin:  "post",
+  email:     "email",
+};
+
+// ---------------------------------------------------------------------------
 // Zod schema
 // ---------------------------------------------------------------------------
 
 const generateSchema = z.object({
-  platform:   z.enum(["instagram", "tiktok", "youtube", "x", "linkedin", "email"]),
-  brief:      z.string().min(20, "Le brief doit faire au moins 20 caractères"),
-  project_id: z.string().uuid("Sélectionnez un projet valide"),
-  tone:       z
+  platform:    z.enum(["instagram", "tiktok", "youtube", "x", "linkedin", "email"]),
+  brief:       z.string().min(20, "Le brief doit faire au moins 20 caractères"),
+  // ✅ campaign_id requis par le backend (ContentGenerateRequest.campaign_id)
+  campaign_id: z.string().uuid("Sélectionnez une campagne valide"),
+  tone:        z
     .enum(["professionnel", "décontracté", "inspirant", "humoristique"])
     .optional(),
 });
@@ -294,9 +307,14 @@ function PlatformPreview({
 export default function ContentNewPage() {
   const { projects, isLoading: projectsLoading } = useProjects();
 
+  // ── Campaign cascade (project → campaigns) ─────────────────────────────────
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const { campaigns, isLoading: campaignsLoading } = useCampaigns(
+    selectedProjectId || undefined,
+  );
+
   // ── State machine ──────────────────────────────────────────────────────────
   const [step, setStep] = useState<"form" | "generating" | "result">("form");
-  const [taskId, setTaskId] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -308,18 +326,6 @@ export default function ContentNewPage() {
 
   // Rotating status messages
   const [msgIndex, setMsgIndex] = useState(0);
-
-  // Prevent double-transition (StrictMode double-effect)
-  const transitionedRef = useRef(false);
-
-  // ── Polling ────────────────────────────────────────────────────────────────
-  const activeTaskId = step === "generating" ? taskId : null;
-  const {
-    status: pollStatus,
-    result: pollResult,
-    isComplete,
-    error: pollError,
-  } = usePolling(activeTaskId);
 
   // ── Form ───────────────────────────────────────────────────────────────────
   const {
@@ -348,54 +354,53 @@ export default function ContentNewPage() {
     return () => clearInterval(id);
   }, [step]);
 
-  // ── Transition to result / error when polling terminates ───────────────────
-  useEffect(() => {
-    if (!isComplete || step !== "generating" || transitionedRef.current) return;
-    transitionedRef.current = true;
-
-    if (pollResult) {
-      const r = pollResult as GenerationResult;
-      setSavedResult(r);
-      setEditedText(r.text);
-      setStep("result");
-    } else {
-      setSubmitError("La génération a échoué. Veuillez réessayer.");
-      setStep("form");
-    }
-    setTaskId(null);
-  }, [isComplete, pollResult, step]);
-
   // ── Handlers ───────────────────────────────────────────────────────────────
+  // ✅ POST /api/v1/content/generate est synchrone — réponse directe, pas de task_id ni polling
   const onSubmit = async (data: GenerateFormData) => {
     setSubmitError(null);
     setIsPosting(true);
     setMsgIndex(0);
-    transitionedRef.current = false;
+    setStep("generating");
     try {
-      const { task_id } = await apiPost<{ task_id: string }>(
-        "/api/v1/content/text/generate",
+      interface ContentGenerateApiResponse {
+        body_text:   string | null;
+        tokens_used: number | null;
+        cost_usd:    number | null;
+      }
+      const resp = await apiPost<ContentGenerateApiResponse>(
+        "/api/v1/content/generate",
         {
-          platform:   data.platform,
-          brief:      data.brief,
-          tone:       data.tone,
-          project_id: data.project_id,
+          content_type:        PLATFORM_TO_CONTENT_TYPE[data.platform as Platform],
+          campaign_id:         data.campaign_id,
+          platform:            data.platform,
+          tone:                data.tone ?? "professionnel",
+          language:            "fr",
+          custom_instructions: data.brief,
+          lead_id:             null,
         },
       );
-      setTaskId(task_id);
-      setStep("generating");
+      const result: GenerationResult = {
+        text:        resp.body_text ?? "",
+        hashtags:    [],
+        platform:    data.platform,
+        tokens_used: resp.tokens_used ?? 0,
+        cost_usd:    resp.cost_usd ?? 0,
+      };
+      setSavedResult(result);
+      setEditedText(result.text);
+      setStep("result");
     } catch (err) {
       setSubmitError(
         err instanceof Error ? err.message : "Erreur lors de la génération",
       );
+      setStep("form");
     } finally {
       setIsPosting(false);
     }
   };
 
   const handleCancel = () => {
-    setTaskId(null);
     setStep("form");
-    transitionedRef.current = false;
   };
 
   const handleCopy = async () => {
@@ -411,9 +416,7 @@ export default function ContentNewPage() {
     setEditedText("");
     setCopied(false);
     setSavedMsg(null);
-    setTaskId(null);
     setStep("form");
-    transitionedRef.current = false;
   };
 
   const handleSave = async () => {
@@ -563,10 +566,11 @@ export default function ContentNewPage() {
                 )}
               </div>
 
-              {/* Project selector */}
+              {/* Project → Campaign cascade */}
+              {/* 1. Project selector (UI only — drives campaign list) */}
               <div className="flex flex-col gap-1.5">
                 <label
-                  htmlFor="project_id"
+                  htmlFor="filter_project_id"
                   className="text-sm font-semibold text-gray-700 dark:text-gray-300"
                 >
                   Projet
@@ -575,8 +579,12 @@ export default function ContentNewPage() {
                   <Skeleton variant="rect" height="42px" className="rounded-xl" />
                 ) : (
                   <select
-                    id="project_id"
-                    {...register("project_id")}
+                    id="filter_project_id"
+                    value={selectedProjectId}
+                    onChange={(e) => {
+                      setSelectedProjectId(e.target.value);
+                      setValue("campaign_id", "");
+                    }}
                     className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   >
                     <option value="">Sélectionner un projet…</option>
@@ -587,9 +595,40 @@ export default function ContentNewPage() {
                     ))}
                   </select>
                 )}
-                {errors.project_id && (
+              </div>
+
+              {/* 2. Campaign selector (soumis au backend comme campaign_id) */}
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="campaign_id"
+                  className="text-sm font-semibold text-gray-700 dark:text-gray-300"
+                >
+                  Campagne
+                </label>
+                {campaignsLoading ? (
+                  <Skeleton variant="rect" height="42px" className="rounded-xl" />
+                ) : (
+                  <select
+                    id="campaign_id"
+                    {...register("campaign_id")}
+                    disabled={!selectedProjectId}
+                    className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  >
+                    <option value="">
+                      {selectedProjectId
+                        ? "Sélectionner une campagne…"
+                        : "Sélectionnez d'abord un projet"}
+                    </option>
+                    {campaigns.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {errors.campaign_id && (
                   <p role="alert" className="text-xs text-red-500">
-                    {errors.project_id.message}
+                    {errors.campaign_id.message}
                   </p>
                 )}
               </div>
@@ -706,19 +745,7 @@ export default function ContentNewPage() {
               >
                 {ROTATING_MESSAGES[msgIndex]}
               </p>
-              {pollStatus && (
-                <p className="text-xs text-gray-400">
-                  État : <span className="font-medium">{pollStatus}</span>
-                </p>
-              )}
             </div>
-
-            {/* Poll error */}
-            {pollError && (
-              <p role="alert" className="text-sm text-red-500">
-                {pollError.message}
-              </p>
-            )}
 
             <Button variant="ghost" size="md" onClick={handleCancel}>
               Annuler
