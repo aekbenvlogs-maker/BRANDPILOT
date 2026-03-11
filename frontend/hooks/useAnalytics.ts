@@ -1,7 +1,6 @@
 // ============================================================
-// PROJECT      : BRANDSCALE — AI Brand Scaling Tool
+// PROJECT      : BRANDSCALE
 // FILE         : frontend/hooks/useAnalytics.ts
-// DESCRIPTION  : SWR hook for analytics summary and per-campaign data
 // ============================================================
 import useSWR from "swr";
 import { apiFetch } from "@/utils/api";
@@ -11,6 +10,31 @@ export interface AnalyticsSummary {
   avg_open_rate: number;
   avg_click_rate: number;
   avg_conversion_rate: number;
+}
+
+// Re-exported alias so consumers can use the more descriptive name
+export type DashboardStats = AnalyticsSummary;
+
+// ---------------------------------------------------------------------------
+// useDashboardStats — GET /api/v1/analytics/dashboard
+// ---------------------------------------------------------------------------
+
+export function useDashboardStats(): {
+  stats: DashboardStats | null;
+  isLoading: boolean;
+  error: Error | undefined;
+} {
+  const { data, isLoading, error } = useSWR<DashboardStats>(
+    "/api/v1/analytics/dashboard",
+    (url: string) => apiFetch<DashboardStats>(url),
+    { revalidateOnFocus: true, refreshInterval: 60_000 },
+  );
+
+  return {
+    stats:    data ?? null,
+    isLoading,
+    error:    error as Error | undefined,
+  };
 }
 
 export interface CampaignAnalytics {

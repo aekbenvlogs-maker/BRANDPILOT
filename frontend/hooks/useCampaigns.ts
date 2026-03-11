@@ -1,10 +1,14 @@
 // ============================================================
-// PROJECT      : BRANDSCALE — AI Brand Scaling Tool
+// PROJECT      : BRANDSCALE
 // FILE         : frontend/hooks/useCampaigns.ts
-// DESCRIPTION  : SWR hook for campaigns list
 // ============================================================
 import useSWR from "swr";
+import type { KeyedMutator } from "swr";
 import { apiFetch } from "@/utils/api";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface Campaign {
   id: string;
@@ -20,20 +24,50 @@ interface CampaignsResponse {
   total: number;
 }
 
-export default function useCampaigns(projectId?: string) {
-  // Don't fetch without a project_id — backend requires it
-  const url = projectId ? `/api/v1/campaigns?project_id=${projectId}` : null;
+// ---------------------------------------------------------------------------
+// useCampaigns — list
+// ---------------------------------------------------------------------------
+
+export function useCampaigns(projectId?: string): {
+  campaigns: Campaign[];
+  total: number;
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | undefined;
+  mutate: KeyedMutator<CampaignsResponse>;
+} {
+  const url = projectId
+    ? `/api/v1/campaigns?project_id=${encodeURIComponent(projectId)}`
+    : "/api/v1/campaigns";
 
   const { data, error, isLoading, mutate } = useSWR<CampaignsResponse>(
     url,
     (u: string) => apiFetch<CampaignsResponse>(u),
+    { revalidateOnFocus: true },
   );
 
   return {
-    campaigns: data?.items,
-    total: data?.total ?? 0,
+    campaigns: data?.items ?? [],
+    total:     data?.total ?? 0,
     isLoading,
-    isError: !!error,
+    isError:   !!error,
+    error:     error as Error | undefined,
     mutate,
   };
+}
+
+// Default export — keeps all existing `import useCampaigns from "@/hooks/useCampaigns"` working
+export default useCampaigns;
+
+// ---------------------------------------------------------------------------
+// useCampaign — single campaign by id
+// ---------------------------------------------------------------------------
+
+export function useCampaign(id: string) {
+  const { data, error, isLoading, mutate } = useSWR<Campaign>(
+    id ? `/api/v1/campaigns/${id}` : null,
+    (url: string) => apiFetch<Campaign>(url),
+  );
+
+  return { campaign: data ?? null, isLoading, error: error as Error | undefined, mutate };
 }

@@ -123,16 +123,65 @@ export function useGenerateText() {
 // useContentHistory
 // ---------------------------------------------------------------------------
 
-export function useContentHistory(projectId?: string) {
-  const url = projectId
-    ? `/api/v1/content/history?project_id=${projectId}`
-    : "/api/v1/content/history";
-
+export function useContentHistory(projectId: string | undefined) {
   const { data, error, isLoading } = useSWR<ContentHistoryItem[]>(
-    url,
+    projectId ? `/api/v1/content/history/${projectId}` : null,
     (u: string) => apiFetch<ContentHistoryItem[]>(u),
     { revalidateOnFocus: false },
   );
 
-  return { history: data ?? [], isLoading, error };
+  return { history: data ?? [], isLoading, error: error as Error | undefined };
+}
+
+// ---------------------------------------------------------------------------
+// usePolling — polls /api/v1/content/status/:taskId at `interval` ms
+//              auto-stops when status reaches a terminal state
+// ---------------------------------------------------------------------------
+
+export interface PollStatusResponse {
+  task_id: string;
+  status: "pending" | "processing" | "done" | "completed" | "failed";
+  result?: unknown;
+  error?: string;
+  progress?: number;
+}
+
+const TERMINAL_STATUSES = new Set(["done", "completed", "failed"]);
+
+export function usePolling(
+  taskId: string | null,
+  interval = 2_000,
+): {
+  status: PollStatusResponse["status"] | null;
+  result: unknown;
+  isComplete: boolean;
+  error: Error | undefined;
+} {
+  const { data, error } = useSWR<PollStatusResponse>(
+    taskId ? `/api/v1/content/status/${taskId}` : null,
+    (url: string) => apiFetch<PollStatusResponse>(url),
+    {
+      /**
+       * refreshInterval as a function: SWR passes the latest cached data.
+       * Return 0 once we hit a terminal status — SWR stops polling
+       * without unmounting or clearing the last result.
+       */
+      refreshInterval: (latestData) => {
+        if (!latestData) return interval;
+        return TERMINAL_STATUSES.has(latestData.status) ? 0 : interval;
+      },
+      revalidateOnFocus: false,
+      // Keep last result visible after polling stops
+      keepPreviousData: true,
+    },
+  );
+
+  const isComplete = data ? TERMINAL_STATUSES.has(data.status) : false;
+
+  return {
+    status:     data?.status ?? null,
+    result:     data?.result ?? null,
+    isComplete,
+    error:      error as Error | undefined,
+  };
 }
