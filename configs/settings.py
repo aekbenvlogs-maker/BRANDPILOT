@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import yaml
 
@@ -53,9 +53,23 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     secret_key: str = Field(
         min_length=32,
-        description="JWT signing secret — min 32 chars",
+        description="JWT signing secret — min 32 chars (HS256 dev fallback)",
     )
-    jwt_algorithm: str = Field(default="HS256")
+    # RS256 asymmetric keys — required in production
+    # Generate with: openssl genrsa -out jwt_private.pem 2048
+    #                openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
+    jwt_algorithm: str = Field(
+        default="RS256",
+        description="JWT algorithm: RS256 (prod) or HS256 (dev fallback)",
+    )
+    jwt_private_key: str = Field(
+        default="",
+        description="RSA private key PEM for RS256 token signing (production required)",
+    )
+    jwt_public_key: str = Field(
+        default="",
+        description="RSA public key PEM for RS256 token verification (production required)",
+    )
     access_token_expire_minutes: int = Field(default=30, ge=1)
     refresh_token_expire_days: int = Field(default=7, ge=1)
 
@@ -165,6 +179,25 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     # Validators
     # ---------------------------------------------------------------------------
+    @model_validator(mode="after")
+    def validate_rs256_keys_in_production(self) -> "Settings":
+        """
+        Enforce RS256 key presence in production.
+
+        In development, falls back to HS256 + secret_key when RS256 keys
+        are absent (allows running without generating RSA keypair).
+        Hard-fails in production to prevent accidental symmetric auth.
+        """
+        if self.app_env == "production" and self.jwt_algorithm == "RS256":
+            if not self.jwt_private_key or not self.jwt_public_key:
+                raise ValueError(
+                    "JWT_PRIVATE_KEY and JWT_PUBLIC_KEY are required in production "
+                    "when JWT_ALGORITHM=RS256. "
+                    "Generate with: openssl genrsa -out jwt_private.pem 2048 && "
+                    "openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem"
+                )
+        return self
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str) -> str:
@@ -186,6 +219,49 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         """Return CORS origins as a parsed list."""
         return [origin.strip() for origin in self.cors_origins.split(",")]
+
+    @property
+    def effective_jwt_algorithm(self) -> str:
+        """
+        Effective JWT algorithm.
+
+        Returns RS256 when both RSA keys are configured, falls back
+        to HS256 in development when keys are absent.
+        """
+        if (
+            self.jwt_algorithm == "RS256"
+            and self.jwt_private_key
+            and self.jwt_public_key
+        ):
+            return "RS256"
+        if self.jwt_algorithm == "RS256":
+            # Dev fallback — log warning once via side-effect import
+            return "HS256"
+        return self.jwt_algorithm
+
+    @property
+    def jwt_sign_key(self) -> str:
+        """
+        Key used to SIGN tokens.
+
+        Returns RSA private key PEM for RS256,
+        or secret_key for HS256 dev fallback.
+        """
+        if self.effective_jwt_algorithm == "RS256":
+            return self.jwt_private_key
+        return self.secret_key
+
+    @property
+    def jwt_verify_key(self) -> str:
+        """
+        Key used to VERIFY tokens.
+
+        Returns RSA public key PEM for RS256,
+        or secret_key for HS256 dev fallback.
+        """
+        if self.effective_jwt_algorithm == "RS256":
+            return self.jwt_public_key
+        return self.secret_key
 
     @property
     def is_production(self) -> bool:

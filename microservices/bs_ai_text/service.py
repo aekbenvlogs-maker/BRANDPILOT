@@ -324,8 +324,17 @@ async def generate_email_content(
         f" Language: {language}."
         f" Lead ID: {lead_id}."
     )
-    # Cache key uses sector/lang for cross-campaign reuse (not campaign_id/lead_id)
-    key = _cache_key("email", sector=sector, lang=language)
+    # Cache key is per-lead: includes lead_id to guarantee unique personalised output.
+    # Falls back to sector+lang+company bucket when lead_id is None (batch previews).
+    key = _cache_key(
+        "email",
+        lead_id=str(lead_id) if lead_id else "anon",
+        sector=sector,
+        company=company,
+        company_size=company_size,
+        score_tier=score_tier,
+        lang=language,
+    )
     return await _generate_text(system_prompt, user_prompt, "email", key, campaign_id)
 
 

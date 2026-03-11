@@ -70,7 +70,15 @@ def create_access_token(user_id: uuid.UUID, role: str) -> str:
         "iat": datetime.now(UTC),
         "type": "access",
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
+    alg = settings.effective_jwt_algorithm
+    if alg == "RS256":
+        logger.debug("[auth] Signing access token with RS256 RSA private key")
+    else:
+        logger.warning(
+            "[auth] RS256 keys not configured — falling back to HS256. "
+            "Set JWT_PRIVATE_KEY + JWT_PUBLIC_KEY for production security."
+        )
+    return jwt.encode(payload, settings.jwt_sign_key, algorithm=alg)
 
 
 def create_refresh_token(user_id: uuid.UUID) -> str:
@@ -91,7 +99,11 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
         "jti": str(uuid.uuid4()),  # unique token ID for revocation
         "type": "refresh",
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
+    return jwt.encode(
+        payload,
+        settings.jwt_sign_key,
+        algorithm=settings.effective_jwt_algorithm,
+    )
 
 
 def decode_token(token: str) -> dict:  # type: ignore[type-arg]
@@ -107,7 +119,11 @@ def decode_token(token: str) -> dict:  # type: ignore[type-arg]
     Raises:
         JWTError: If token is invalid or expired.
     """
-    return jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+    return jwt.decode(
+        token,
+        settings.jwt_verify_key,
+        algorithms=[settings.effective_jwt_algorithm],
+    )
 
 
 def _hash_token(token: str) -> str:
