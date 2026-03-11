@@ -26,6 +26,14 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     """Request body for creating a new project."""
 
+    brand_url: str | None = Field(
+        default=None,
+        description=(
+            "Brand website URL. When provided, triggers automatic brand analysis "
+            "(tone, colours, keywords, competitors) in the background."
+        ),
+    )
+
 
 class ProjectUpdate(BaseModel):
     """Request body for updating a project (all optional)."""
@@ -33,6 +41,10 @@ class ProjectUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=256)
     description: str | None = None
     archived: bool | None = None
+    brand_url: str | None = Field(
+        default=None,
+        description="Update the brand website URL (triggers re-analysis via POST /{id}/analyze-brand).",
+    )
 
 
 class ProjectResponse(ProjectBase):
@@ -41,6 +53,8 @@ class ProjectResponse(ProjectBase):
     id: uuid.UUID
     user_id: uuid.UUID
     archived: bool
+    brand_url: str | None = None
+    tone: str | None = None
     created_at: datetime
     updated_at: datetime
 

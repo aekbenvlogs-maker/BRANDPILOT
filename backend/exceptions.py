@@ -7,7 +7,7 @@ from __future__ import annotations
 
 
 class BrandpilotError(Exception):
-    """Base class for all BRANDPILOT domain exceptions.
+    """Base class for all BRANDSCALE domain exceptions.
 
     All application-specific exceptions must inherit from this class
     to allow catch-all handlers to distinguish domain errors from

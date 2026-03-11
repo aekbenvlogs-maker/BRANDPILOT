@@ -581,7 +581,7 @@ class CampaignAgent:
             select(Project).where(Project.id == uuid.UUID(project_id))
         )
         project = result.scalar_one_or_none()
-        brand_name = project.name if project else "BRANDPILOT Brand"
+        brand_name = project.name if project else "BRANDSCALE Brand"
         logger.debug(
             "[CampaignAgent] Context loaded (minimal) | project={} brand={}",
             project_id,

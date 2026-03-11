@@ -38,6 +38,7 @@ async def create_project(
         user_id=user_id,
         name=data.name,
         description=data.description,
+        brand_url=data.brand_url,
     )
     db.add(project)
     await db.flush()
@@ -45,6 +46,16 @@ async def create_project(
     logger.info(
         "[BRANDSCALE] Project created | id={} name={}", project.id, project.name
     )
+    # Fire brand analysis asynchronously if a URL was provided at creation time
+    if data.brand_url:
+        from microservices.campaign_agent.worker import analyze_brand as _brand_task
+
+        _brand_task.delay(str(project.id))
+        logger.info(
+            "[BRANDSCALE] Brand analysis queued | project={} url={}",
+            project.id,
+            data.brand_url,
+        )
     return project
 
 

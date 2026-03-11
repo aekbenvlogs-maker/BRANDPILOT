@@ -16,7 +16,7 @@ from configs.settings import get_settings
 settings = get_settings()
 
 # Local fallback directory when S3 is unavailable
-_LOCAL_FALLBACK_DIR = Path("/tmp/brandpilot/images")
+_LOCAL_FALLBACK_DIR = Path("/tmp/brandscale/images")
 
 # ---------------------------------------------------------------------------
 # Internal helpers

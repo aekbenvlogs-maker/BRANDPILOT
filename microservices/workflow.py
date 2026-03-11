@@ -17,9 +17,9 @@ import uuid
 from celery import Celery, chain, group
 from celery.schedules import crontab
 from database.connection import db_session
-from database.models_orm import Campaign, Lead, ScoringWeights, WorkflowJob
+from database.models_orm import Analytics, Campaign, Email, Lead, ScoringWeights, WorkflowJob
 from loguru import logger
-from sqlalchemy import delete, select, update
+from sqlalchemy import Date, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from configs.alerting import send_alert
@@ -50,7 +50,11 @@ celery_app.conf.update(
 celery_app.conf.beat_schedule = {
     "rgpd-lead-purge": {
         "task": "brandscale.purge_expired_leads",
-        "schedule": crontab(hour=2, minute=0),  # 02:00 UTC daily
+        "schedule": crontab(hour=2, minute=0),   # 02:00 UTC daily
+    },
+    "analytics-daily-aggregation": {
+        "task": "brandscale.aggregate_campaign_analytics",
+        "schedule": crontab(hour=3, minute=30),  # 03:30 UTC daily
     },
 }
 
@@ -436,5 +440,112 @@ def purge_expired_leads() -> dict[str, int]:
             level="info",
         )
         return {"deleted": result.rowcount}
+
+    return asyncio.run(_run())
+
+
+@celery_app.task(name="brandscale.aggregate_campaign_analytics")
+def aggregate_campaign_analytics() -> dict[str, Any]:
+    """
+    Aggregate daily analytics for all active campaigns.
+
+    For each active campaign, computes from yesterday's Email rows:
+    - emails_sent:  count of non-bounced emails with sent_at on the target date
+    - open_rate:    percentage of sent emails that have an opened_at timestamp
+    - ctr:          percentage of sent emails with a clicked_at timestamp
+    - conversions:  count of leads promoted to 'hot' tier on the target date
+    - ai_cost_usd:  preserved from any existing row (updated by AI cost tracker)
+
+    Upserts into the Analytics table (UPDATE existing or INSERT new).
+    Runs daily at 03:30 UTC via Celery Beat, after the RGPD purge.
+
+    Returns:
+        Dict with campaigns_processed count and aggregation date.
+    """
+    import asyncio
+
+    async def _run() -> dict[str, Any]:
+        from sqlalchemy import cast
+
+        yesterday = (datetime.now(UTC) - timedelta(days=1)).date()
+        processed = 0
+
+        async with db_session() as session:
+            campaigns_result = await session.execute(
+                select(Campaign).where(Campaign.status == "active")
+            )
+            campaigns = campaigns_result.scalars().all()
+
+            for campaign in campaigns:
+                # ── email engagement stats ──────────────────────────────────
+                stats_result = await session.execute(
+                    select(
+                        func.count(Email.id).label("total"),
+                        func.count(Email.opened_at).label("opened"),
+                        func.count(Email.clicked_at).label("clicked"),
+                    ).where(
+                        Email.campaign_id == campaign.id,
+                        cast(Email.sent_at, Date) == yesterday,
+                        Email.bounced.is_(False),
+                    )
+                )
+                row = stats_result.one()
+                total = int(row.total or 0)
+                opened = int(row.opened or 0)
+                clicked = int(row.clicked or 0)
+                open_rate = round(opened / total * 100, 2) if total > 0 else 0.0
+                ctr = round(clicked / total * 100, 2) if total > 0 else 0.0
+
+                # ── hot leads promoted yesterday (proxy for conversions) ──
+                conv_result = await session.execute(
+                    select(func.count(Lead.id)).where(
+                        Lead.project_id == campaign.project_id,
+                        Lead.score_tier == "hot",
+                        cast(Lead.score_updated_at, Date) == yesterday,
+                    )
+                )
+                conversions = int(conv_result.scalar_one() or 0)
+
+                # ── upsert Analytics row ────────────────────────────────
+                existing_result = await session.execute(
+                    select(Analytics).where(
+                        Analytics.campaign_id == campaign.id,
+                        Analytics.date == yesterday,
+                    )
+                )
+                existing = existing_result.scalar_one_or_none()
+
+                if existing:
+                    existing.emails_sent = total
+                    existing.open_rate = open_rate
+                    existing.ctr = ctr
+                    existing.conversions = conversions
+                    # ai_cost_usd preserved — managed by AI cost accumulator
+                else:
+                    session.add(
+                        Analytics(
+                            campaign_id=campaign.id,
+                            date=yesterday,
+                            emails_sent=total,
+                            open_rate=open_rate,
+                            ctr=ctr,
+                            conversions=conversions,
+                            ai_cost_usd=0.0,
+                        )
+                    )
+                processed += 1
+
+            await session.commit()
+
+        logger.info(
+            "[workflow] Analytics aggregation complete | campaigns={} date={}",
+            processed,
+            yesterday,
+        )
+        await send_alert(
+            f"Daily analytics aggregated: {processed} campaigns (date: {yesterday})",
+            level="info",
+        )
+        return {"campaigns_processed": processed, "date": str(yesterday)}
 
     return asyncio.run(_run())

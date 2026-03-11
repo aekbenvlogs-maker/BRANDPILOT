@@ -42,7 +42,7 @@ from microservices.campaign_agent.worker import celery_app
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="BRANDPILOT — Campaign Agent",
+    title="BRANDSCALE — Campaign Agent",
     description=(
         "Internal microservice: 10-step AI campaign generation pipeline. "
         "Powered by GPT-4, Celery chords, and Redis pub/sub."

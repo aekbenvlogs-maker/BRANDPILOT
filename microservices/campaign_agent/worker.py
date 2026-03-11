@@ -347,13 +347,22 @@ def analyze_brand(self: Any, project_id: str) -> dict[str, Any]:
 
 
 async def _analyze_brand_async(project_id: str) -> dict[str, Any]:
-    """Async implementation of brand analysis — calls bs_brand_analyzer stub.
+    """
+    Async implementation of brand analysis.
+
+    When the project has a ``brand_url`` set, delegates to the full
+    ``bs_brand_analyzer.service.analyze_brand`` pipeline
+    (scrape → tone → visual → competitors → persist).
+
+    Falls back to safe stub defaults when no URL is available (e.g. in
+    development or when the project was created without a website URL).
 
     Args:
         project_id: UUID string of the project.
 
     Returns:
-        Structured brand analysis dict.
+        Structured brand analysis dict with keys: tone, colors, keywords,
+        niche, brand_name.
     """
     from sqlalchemy import select
 
@@ -367,6 +376,40 @@ async def _analyze_brand_async(project_id: str) -> dict[str, Any]:
         project = result.scalar_one_or_none()
 
     brand_name = project.name if project else "Brand"
+
+    # Real analysis: delegate to bs_brand_analyzer when brand_url is set
+    if project and getattr(project, "brand_url", None):
+        try:
+            from microservices.bs_brand_analyzer.service import (
+                analyze_brand as run_brand_analysis,
+            )
+
+            analysis = await run_brand_analysis(project_id, project.brand_url)
+            logger.info(
+                "[campaign_agent] brand_analyzer complete | project={} tone={} score={}",
+                project_id,
+                analysis.detected_tone,
+                analysis.consistency_score,
+            )
+            return {
+                "tone": analysis.detected_tone,
+                "colors": analysis.primary_colors,
+                "keywords": analysis.keywords,
+                "niche": analysis.detected_niche,
+                "brand_name": brand_name,
+                "consistency_score": analysis.consistency_score,
+                "target_audience": analysis.target_audience,
+                "competitors": analysis.competitors,
+            }
+        except Exception as exc:
+            logger.warning(
+                "[campaign_agent] brand_analyzer failed | project={} url={} error={} — using stub",
+                project_id,
+                project.brand_url,
+                exc,
+            )
+
+    # Stub fallback: used in dev or when brand_url is absent / analysis failed
     return {
         "tone": "professional",
         "colors": ["#1A1A2E", "#16213E", "#0F3460"],

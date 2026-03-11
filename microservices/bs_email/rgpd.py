@@ -24,8 +24,8 @@ from database.models_orm import Campaign, Email, Lead, User
 settings = get_settings()
 
 # itsdangerous serializer — same salt as the unsubscribe link generator
-_UNSUB_SALT = "brandpilot-unsubscribe"
-_RESET_SALT = "brandpilot-password-reset"
+_UNSUB_SALT = "brandscale-unsubscribe"
+_RESET_SALT = "brandscale-password-reset"
 _TOKEN_MAX_AGE = 86_400  # 24 h
 
 _serializer = URLSafeTimedSerializer(

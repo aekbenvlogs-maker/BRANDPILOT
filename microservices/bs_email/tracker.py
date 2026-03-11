@@ -26,8 +26,8 @@ settings = get_settings()
 # Serializer
 # ---------------------------------------------------------------------------
 
-_OPEN_SALT = "brandpilot-open-tracking"
-_CLICK_SALT = "brandpilot-click-tracking"
+_OPEN_SALT = "brandscale-open-tracking"
+_CLICK_SALT = "brandscale-click-tracking"
 _TOKEN_MAX_AGE = 7 * 24 * 3600  # 7 days
 
 _serializer = URLSafeTimedSerializer(
@@ -46,10 +46,10 @@ _PIXEL_GIF = base64.b64decode(
 # fmt: on
 
 # ---------------------------------------------------------------------------
-# Base URL for tracker endpoints (e.g. "https://api.brandpilot.ai")
+# Base URL for tracker endpoints (e.g. "https://api.brandscale.ai")
 # ---------------------------------------------------------------------------
 
-_API_BASE: str = getattr(settings, "api_base_url", "https://api.brandpilot.ai")
+_API_BASE: str = getattr(settings, "api_base_url", "https://api.brandscale.ai")
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ def generate_tracking_pixel(email_log_id: str) -> str:
 
     Returns:
         Absolute URL, e.g.
-        ``https://api.brandpilot.ai/track/open?t=<token>``
+        ``https://api.brandscale.ai/track/open?t=<token>``
     """
     token = _serializer.dumps({"email_log_id": email_log_id}, salt=_OPEN_SALT)
     qs = urlencode({"t": token})
@@ -147,7 +147,7 @@ def generate_tracked_link(url: str, email_log_id: str) -> str:
 
     Returns:
         Absolute redirect URL, e.g.
-        ``https://api.brandpilot.ai/track/click?t=<token>``
+        ``https://api.brandscale.ai/track/click?t=<token>``
     """
     token = _serializer.dumps(
         {"email_log_id": email_log_id, "url": url},

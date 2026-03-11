@@ -86,3 +86,45 @@ async def delete_project(
 ) -> dict[str, str]:
     """Archive a project (soft delete)."""
     return await handle_delete_project(db, project_id, user_id)
+
+
+@router.post(
+    "/{project_id}/analyze-brand",
+    response_model=dict,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def trigger_brand_analysis(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+) -> dict[str, str]:
+    """
+    Queue brand analysis for an existing project.
+
+    Fires the ``campaign_agent.analyze_brand`` Celery task asynchronously
+    and returns immediately with the task ID.
+
+    The pipeline runs in the background:
+    scrape → tone analysis → visual analysis → competitor discovery → persist.
+    Results are written to the ``brand_analyses`` table and ``project.tone``
+    is updated on completion.
+
+    Requires the project to have a ``brand_url`` set (either at creation time
+    or via ``PUT /projects/{project_id}``). Returns **422** if not set.
+    """
+    from fastapi import HTTPException
+
+    from microservices.campaign_agent.worker import analyze_brand as _brand_task
+
+    project = await handle_get_project(db, project_id, user_id)
+    if not getattr(project, "brand_url", None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Project has no brand_url. "
+                "Set it via PUT /projects/{project_id} first, "
+                "or provide it at project creation time."
+            ),
+        )
+    task = _brand_task.delay(str(project_id))
+    return {"task_id": task.id, "status": "queued", "project_id": str(project_id)}

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # BRANDPILOT — microservices/bs_email/templates.py
 # HTML email templates — responsive, RGPD-compliant, Outlook-safe.
-# Copyright © 2026 BRANDPILOT Dev Team — MIT License
+# Copyright © 2026 BRANDSCALE Dev Team — MIT License
 
 from __future__ import annotations
 
@@ -55,20 +55,20 @@ _BASE_HTML = """\
 <div class="email-wrapper">
   <div class="email-container">
     <div class="email-header">
-      <h1>BRANDPILOT</h1>
+      <h1>BRANDSCALE</h1>
     </div>
     <div class="email-body">
       {body}
     </div>
     <div class="email-footer">
-      <p>© 2026 BRANDPILOT — Tous droits réservés</p>
+      <p>© 2026 BRANDSCALE — Tous droits réservés</p>
       <p>
         Vous recevez cet email car vous avez accepté nos communications.<br/>
         <a href="{unsubscribe_url}" class="unsubscribe-link">
           Se désabonner
         </a>
         &nbsp;·&nbsp;
-        <a href="https://brandpilot.ai/privacy" class="unsubscribe-link">
+        <a href="https://brandscale.ai/privacy" class="unsubscribe-link">
           Politique de confidentialité
         </a>
       </p>
@@ -84,15 +84,15 @@ _BASE_HTML = """\
 
 _BODIES: dict[str, dict[str, str]] = {
     "welcome": {
-        "title": "Bienvenue sur BRANDPILOT",
+        "title": "Bienvenue sur BRANDSCALE",
         "body": """\
 <h2>Bienvenue, {{first_name}} ! 👋</h2>
 <p>
-  Votre compte BRANDPILOT est maintenant actif. Nous sommes ravis de vous
+  Votre compte BRANDSCALE est maintenant actif. Nous sommes ravis de vous
   accompagner dans le développement de votre marque grâce à l'intelligence
   artificielle.
 </p>
-<p>Avec BRANDPILOT vous pouvez :</p>
+<p>Avec BRANDSCALE vous pouvez :</p>
 <ul>
   <li>📣 Créer des campagnes marketing en quelques secondes</li>
   <li>🎯 Scorer et qualifier vos leads automatiquement</li>
@@ -104,14 +104,14 @@ _BODIES: dict[str, dict[str, str]] = {
 </p>
 <p>
   En cas de question, notre équipe est disponible à
-  <a href="mailto:support@brandpilot.ai">support@brandpilot.ai</a>.
+  <a href="mailto:support@brandscale.ai">support@brandscale.ai</a>.
 </p>
-<p>À très bientôt,<br/>L'équipe BRANDPILOT</p>""",
+<p>À très bientôt,<br/>L'équipe BRANDSCALE</p>""",
         "plain": (
-            "Bienvenue sur BRANDPILOT, {{first_name}} !\n\n"
+            "Bienvenue sur BRANDSCALE, {{first_name}} !\n\n"
             "Votre compte est actif. Accédez à votre espace : {{cta_url}}\n\n"
-            "En cas de question : support@brandpilot.ai\n\n"
-            "L'équipe BRANDPILOT"
+            "En cas de question : support@brandscale.ai\n\n"
+            "L'équipe BRANDSCALE"
         ),
     },
     "campaign": {
@@ -123,7 +123,7 @@ _BODIES: dict[str, dict[str, str]] = {
   <a href="{{cta_url}}" class="cta-button">{{cta_label}}</a>
 </p>
 <p style="color:#888;font-size:12px;margin-top:32px;">
-  Vous recevez cet email en tant que contact BRANDPILOT.
+  Vous recevez cet email en tant que contact BRANDSCALE.
 </p>""",
         "plain": (
             "{{headline}}\n\n"
@@ -147,12 +147,12 @@ _BODIES: dict[str, dict[str, str]] = {
   <em>Conformément au RGPD (art. 7), votre consentement a été retiré
   et notre base de données a été mise à jour.</em>
 </p>
-<p>Cordialement,<br/>L'équipe BRANDPILOT</p>""",
+<p>Cordialement,<br/>L'équipe BRANDSCALE</p>""",
         "plain": (
             "Désabonnement confirmé.\n\n"
             "Votre demande a été prise en compte. "
             "Vous ne recevrez plus de communications marketing.\n\n"
-            "L'équipe BRANDPILOT"
+            "L'équipe BRANDSCALE"
         ),
     },
     "password_reset": {
@@ -160,7 +160,7 @@ _BODIES: dict[str, dict[str, str]] = {
         "body": """\
 <h2>Réinitialisation de mot de passe</h2>
 <p>
-  Vous avez demandé la réinitialisation de votre mot de passe BRANDPILOT.
+  Vous avez demandé la réinitialisation de votre mot de passe BRANDSCALE.
   Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.
 </p>
 <p><strong>Ce lien expire dans 24 heures.</strong></p>
@@ -173,13 +173,13 @@ _BODIES: dict[str, dict[str, str]] = {
 </p>
 <p>
   Pour votre sécurité, ne partagez jamais ce lien.<br/>
-  L'équipe BRANDPILOT
+  L'équipe BRANDSCALE
 </p>""",
         "plain": (
-            "Réinitialisation de mot de passe BRANDPILOT.\n\n"
+            "Réinitialisation de mot de passe BRANDSCALE.\n\n"
             "Lien (valable 24h) : {{reset_url}}\n\n"
             "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n\n"
-            "L'équipe BRANDPILOT"
+            "L'équipe BRANDSCALE"
         ),
     },
 }

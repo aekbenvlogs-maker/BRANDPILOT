@@ -156,6 +156,16 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
+    brand_url: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True,
+        comment="Brand website URL for automated bs_brand_analyzer analysis",
+    )
+    tone: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="Detected brand tone (e.g. professional, playful) from bs_brand_analyzer",
+    )
 
     # Relationships
     owner: Mapped[User] = relationship("User", back_populates="projects")

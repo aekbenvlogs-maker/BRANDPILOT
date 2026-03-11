@@ -42,7 +42,7 @@ _CLARIFICATION_QUESTIONS: dict[str, str] = {
 # System prompt — instructs GPT-4 to act as a pure JSON intent extractor.
 # ---------------------------------------------------------------------------
 _SYSTEM_PROMPT = """\
-You are a campaign intent parser for the BRANDPILOT marketing platform.
+You are a campaign intent parser for the BRANDSCALE marketing platform.
 Extract structured campaign parameters from a natural language prompt and \
 return ONLY a valid JSON object — no explanation, no markdown, no extra text.
 

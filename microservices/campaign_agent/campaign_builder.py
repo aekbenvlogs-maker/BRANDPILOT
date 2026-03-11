@@ -317,7 +317,7 @@ def _select_hashtags(
     base_tags = [
         intent.platform,
         intent.objective.replace(" ", "") if intent.objective else "brand",
-        "brandpilot",
+        "brandscale",
         "marketing",
     ]
     audience_tags: list[str] = audience_data.get("trending_hashtags", [])
