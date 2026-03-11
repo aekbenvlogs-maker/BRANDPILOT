@@ -29,9 +29,17 @@ import {
 export interface AuthUser {
   id: string;
   email: string;
-  first_name?: string;
-  last_name?: string;
+  first_name: string;
+  last_name: string;
+  created_at: string;
   onboarding_done?: boolean;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface AuthContextValue {
@@ -40,6 +48,7 @@ export interface AuthContextValue {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   refreshToken: () => Promise<void>;
 }
 
@@ -145,16 +154,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAccessToken(data.access_token);
       localStorage.setItem("bs_refresh_token", data.refresh_token);
 
-      // Decode user from token for immediate availability
-      const basic = getUserFromToken(data.access_token);
-      if (basic) setUser({ id: basic.id, email: basic.email });
-
-      // Then fetch full profile
+      // Fetch full profile — sets user with all required fields
       try {
         const me = await apiFetch<AuthUser>("/api/v1/auth/me");
         setUser(me);
       } catch {
-        // Basic user from token is enough to proceed
+        // /auth/me will be retried on next mount via loadUser()
       }
     },
     [],
@@ -162,9 +167,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      await apiFetch("/api/v1/auth/logout", { method: "DELETE" });
+      const refresh =
+        typeof window !== "undefined"
+          ? localStorage.getItem("bs_refresh_token")
+          : null;
+      await apiPost("/api/v1/auth/logout", { refresh_token: refresh ?? "" });
     } catch {
-      // best-effort
+      // best-effort — clear session regardless
     } finally {
       clearAccessToken();
       localStorage.removeItem("bs_refresh_token");
@@ -172,6 +181,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     }
   }, [router]);
+
+  const register = useCallback(
+    async (data: RegisterData): Promise<void> => {
+      const resp = await apiPost<{
+        access_token: string;
+        refresh_token: string;
+      }>("/api/v1/auth/register", data);
+
+      setAccessToken(resp.access_token);
+      localStorage.setItem("bs_refresh_token", resp.refresh_token);
+
+      // Fetch full profile immediately so context is populated before redirect
+      try {
+        const me = await apiFetch<AuthUser>("/api/v1/auth/me");
+        setUser(me);
+      } catch {
+        // proceed with partial user — /auth/me will be retried on next mount
+      }
+
+      router.replace("/onboarding");
+    },
+    [router],
+  );
 
   // ------------------------------------------------------------------
   // Context value
@@ -184,9 +216,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: user !== null,
       login,
       logout,
+      register,
       refreshToken,
     }),
-    [user, isLoading, login, logout, refreshToken],
+    [user, isLoading, login, logout, register, refreshToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
