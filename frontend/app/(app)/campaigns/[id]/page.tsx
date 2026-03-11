@@ -5,10 +5,9 @@ import useSWR from "swr";
 import { ArrowLeft, Play, XCircle } from "lucide-react";
 import { apiFetch, apiPost } from "@/utils/api";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, CampaignStatusBadge, TierBadge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { TierBadge } from "@/components/ui/Badge";
 
 interface CampaignDetail {
   id: string;
@@ -48,16 +47,27 @@ function StatBar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-function statusVariant(status: string): "success" | "warning" | "neutral" | "error" {
-  if (status === "active")    return "success";
-  if (status === "completed") return "neutral";
-  if (status === "failed")    return "error";
-  return "warning";
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Brouillon", active: "Active", completed: "Terminée", failed: "Échouée",
+// Per-lead email delivery status — 5 distinct states
+const EMAIL_STATUS_CFG: Record<
+  string,
+  { variant: "success" | "warning" | "error" | "info" | "neutral"; label: string }
+> = {
+  pending:      { variant: "neutral", label: "En attente" },
+  sent:         { variant: "info",    label: "Envoyé"    },
+  opened:       { variant: "success", label: "Ouvert"    },
+  clicked:      { variant: "warning", label: "Cliqué"    },
+  bounced:      { variant: "error",   label: "Rebondi"   },
+  unsubscribed: { variant: "error",   label: "Désabonné" },
 };
+
+function EmailStatusBadge({ status }: { status: string }) {
+  const cfg = EMAIL_STATUS_CFG[status];
+  return (
+    <Badge variant={cfg?.variant ?? "neutral"}>
+      {cfg?.label ?? status}
+    </Badge>
+  );
+}
 
 export default function CampaignDetailPage() {
   const params     = useParams<{ id: string }>();
@@ -116,9 +126,7 @@ export default function CampaignDetailPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{campaign.name}</h1>
           <div className="mt-1 flex items-center gap-2">
-            <Badge variant={statusVariant(campaign.status)}>
-              {STATUS_LABELS[campaign.status] ?? campaign.status}
-            </Badge>
+            <CampaignStatusBadge status={campaign.status} />
             <span className="text-xs text-gray-400 capitalize">{campaign.channel}</span>
           </div>
         </div>
@@ -170,9 +178,7 @@ export default function CampaignDetailPage() {
                 <div className="flex items-center gap-2">
                   {lead.score_tier && <TierBadge tier={lead.score_tier} />}
                   {lead.email_status && (
-                    <Badge variant={lead.email_status === "sent" ? "success" : "neutral"}>
-                      {lead.email_status}
-                    </Badge>
+                    <EmailStatusBadge status={lead.email_status} />
                   )}
                 </div>
               </div>

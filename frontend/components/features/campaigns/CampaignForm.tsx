@@ -19,6 +19,7 @@ import type { Lead } from "@/hooks/useLeads";
 
 const campaignSchema = z.object({
   name:         z.string().min(1, "Nom requis"),
+  subject:      z.string().min(1, "Objet requis").max(50, "50 caractères max"),
   channel:      z.enum(["email", "sms", "push", "whatsapp"]),
   lead_ids:     z.array(z.string()),
   template:     z.enum(["welcome", "promotional", "newsletter"]),
@@ -78,12 +79,61 @@ export function CampaignForm({
         register={register("name")}
       />
 
+      {/* Email subject — max 50 chars with live counter */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between">
+          <label
+            htmlFor="cf-subject"
+            className="text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            Objet de l&apos;email <span className="text-red-500">*</span>
+          </label>
+          {(() => {
+            const len = (watch("subject") ?? "").length;
+            const colorCls =
+              len > 50
+                ? "text-red-500 font-semibold"
+                : len > 42
+                ? "text-amber-500"
+                : "text-gray-400";
+            return (
+              <span className={`text-xs ${colorCls}`}>
+                {len}&thinsp;/&thinsp;50
+              </span>
+            );
+          })()}
+        </div>
+        <input
+          id="cf-subject"
+          type="text"
+          {...register("subject")}
+          maxLength={55}
+          placeholder="Notre offre spéciale pour vous 🎁"
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        />
+        {errors.subject && (
+          <p role="alert" className="text-xs text-red-500">
+            {errors.subject.message}
+          </p>
+        )}
+      </div>
+
       {/* Lead selection */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Leads ciblés ({selectedLeadIds.length} sélectionné{selectedLeadIds.length !== 1 ? "s" : ""}) <span className="font-normal text-gray-400">— optionnel</span>
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Leads ciblés
+            </span>
+            <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+              {filteredLeads.length}&thinsp;ciblé{filteredLeads.length !== 1 ? "s" : ""}
+            </span>
+            {selectedLeadIds.length > 0 && (
+              <span className="text-xs text-gray-400">
+                · {selectedLeadIds.length} coché{selectedLeadIds.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
           {/* Tier filter */}
           <select
             value={tierFilter}

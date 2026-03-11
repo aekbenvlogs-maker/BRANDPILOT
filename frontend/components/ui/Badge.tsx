@@ -106,4 +106,67 @@ export function TierBadge({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Campaign status badge — 5 statuses, 5 distinct colored pills
+// ---------------------------------------------------------------------------
+
+const CAMPAIGN_STATUS_CFG: Record<
+  string,
+  { bg: string; text: string; ring: string; label: string }
+> = {
+  draft: {
+    bg:    "bg-gray-100 dark:bg-gray-800",
+    text:  "text-gray-700 dark:text-gray-300",
+    ring:  "ring-1 ring-gray-300 dark:ring-gray-600",
+    label: "Brouillon",
+  },
+  scheduled: {
+    bg:    "bg-blue-50 dark:bg-blue-900/20",
+    text:  "text-blue-700 dark:text-blue-300",
+    ring:  "ring-1 ring-blue-300 dark:ring-blue-700",
+    label: "Planifiée",
+  },
+  active: {
+    bg:    "bg-emerald-100 dark:bg-emerald-900/30",
+    text:  "text-emerald-700 dark:text-emerald-400",
+    ring:  "ring-1 ring-emerald-400 dark:ring-emerald-700",
+    label: "Active",
+  },
+  completed: {
+    bg:    "bg-violet-100 dark:bg-violet-900/30",
+    text:  "text-violet-700 dark:text-violet-400",
+    ring:  "ring-1 ring-violet-300 dark:ring-violet-700",
+    label: "Terminée",
+  },
+  failed: {
+    bg:    "bg-red-100 dark:bg-red-900/30",
+    text:  "text-red-700 dark:text-red-400",
+    ring:  "ring-1 ring-red-300 dark:ring-red-700",
+    label: "Échouée",
+  },
+};
+
+export function CampaignStatusBadge({ status }: { status: string }) {
+  const cfg = CAMPAIGN_STATUS_CFG[status];
+  if (!cfg) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+        {status}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={[
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+        cfg.bg,
+        cfg.text,
+        cfg.ring,
+      ].join(" ")}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
 export default Badge;

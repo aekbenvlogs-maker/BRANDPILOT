@@ -1,35 +1,22 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Plus, Mail, Users, MousePointerClick, FolderOpen } from "lucide-react";
 import useCampaigns from "@/hooks/useCampaigns";
 import useLeads from "@/hooks/useLeads";
 import { useProjects } from "@/hooks/useProjects";
 import { apiFetch } from "@/utils/api";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { CampaignStatusBadge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CampaignForm, type CampaignFormData } from "@/components/features/campaigns/CampaignForm";
 
-function statusVariant(status: string): "success" | "warning" | "neutral" | "error" {
-  if (status === "active")    return "success";
-  if (status === "completed") return "neutral";
-  if (status === "failed")    return "error";
-  return "warning"; // draft / pending
-}
-
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
-    draft: "Brouillon", active: "Active", completed: "Terminée", failed: "Échouée",
-  };
-  return map[status] ?? status;
-}
-
 function CampaignsContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const autoNew = searchParams.get("action") === "new";
 
   const { projects, isLoading: projectsLoading } = useProjects();
@@ -47,9 +34,13 @@ function CampaignsContent() {
     await apiFetch("/api/v1/campaigns", {
       method: "POST",
       body: JSON.stringify({
-        name: data.name,
-        project_id: effectiveProjectId,
-        channel: "email",
+        name:         data.name,
+        subject:      data.subject,
+        project_id:   effectiveProjectId,
+        channel:      "email",
+        lead_ids:     data.lead_ids,
+        template:     data.template,
+        scheduled_at: data.scheduled_at ?? null,
       }),
     });
     setModal(false);
@@ -126,11 +117,13 @@ function CampaignsContent() {
         />
       )}
       {!isLoading && (campaigns ?? []).map((c) => (
-        <div
+        <button
           key={c.id}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
+          type="button"
+          onClick={() => router.push(`/campaigns/${c.id}`)}
+          className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/30 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/20"
         >
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-0.5 text-left">
             <p className="font-medium text-gray-900 dark:text-white">{c.name}</p>
             <p className="text-xs text-gray-400">
               {c.launched_at ? `Lancée le ${new Date(c.launched_at).toLocaleDateString("fr-FR")}` : `Créée le ${new Date(c.created_at).toLocaleDateString("fr-FR")}`}
@@ -150,9 +143,9 @@ function CampaignsContent() {
               <MousePointerClick className="h-3.5 w-3.5" aria-hidden="true" />
               <span>—</span>
             </div>
-            <Badge variant={statusVariant(c.status)}>{statusLabel(c.status)}</Badge>
+            <CampaignStatusBadge status={c.status} />
           </div>
-        </div>
+        </button>
       ))}
 
         </>
