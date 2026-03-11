@@ -1,7 +1,11 @@
-# BRANDSCALE — AI Brand Scaling Platform
+# BRANDPILOT
 
-> **Full-stack, production-ready AI marketing automation platform.**  
-> Generate content, score leads, run email sequences, and monitor everything — from a single codebase.
+![Status](https://img.shields.io/badge/status-beta-orange)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+
+*Copilote marketing IA — De la génération de contenu à la publication automatique, en passant par le scoring de leads et l'analyse de campagnes.*
 
 ---
 
