@@ -10,6 +10,8 @@ export type {
   Project,
   CreateProjectInput,
   UpdateProjectInput,
+  UseProjectsReturn,
+  UseProjectReturn,
 } from "./useProjects";
 
 // --- Leads ------------------------------------------------------------------
@@ -21,7 +23,7 @@ export { useCampaigns, useCampaign } from "./useCampaigns";
 export type { Campaign } from "./useCampaigns";
 
 // --- Analytics --------------------------------------------------------------
-export { useDashboardStats } from "./useAnalytics";
+export { useDashboardStats, useAnalytics } from "./useAnalytics";
 export type { DashboardStats, AnalyticsSummary, CampaignAnalytics, ActivityItem } from "./useAnalytics";
 
 // --- Content generation + polling -------------------------------------------

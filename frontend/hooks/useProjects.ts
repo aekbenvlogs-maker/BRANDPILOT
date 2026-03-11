@@ -3,7 +3,7 @@
 // FILE         : frontend/hooks/useProjects.ts
 // DESCRIPTION  : SWR hooks for project CRUD
 // ============================================================
-import useSWR, { mutate as globalMutate } from "swr";
+import useSWR, { mutate as globalMutate, type KeyedMutator } from "swr";
 import { apiFetch, apiDelete, apiPatch, apiPost } from "@/utils/api";
 
 // ---------------------------------------------------------------------------
@@ -41,12 +41,36 @@ interface ProjectsResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Return types (exported for consumers that want the full shape)
+// ---------------------------------------------------------------------------
+
+export interface UseProjectsReturn {
+  data: ProjectsResponse | null;
+  projects: Project[];
+  total: number;
+  isLoading: boolean;
+  error: Error | undefined;
+  mutate: KeyedMutator<ProjectsResponse>;
+  createProject: (input: CreateProjectInput) => Promise<Project>;
+  updateProject: (id: string, input: UpdateProjectInput) => Promise<Project>;
+  deleteProject: (id: string) => Promise<void>;
+}
+
+export interface UseProjectReturn {
+  data: Project | null;
+  project: Project | undefined;
+  isLoading: boolean;
+  error: Error | undefined;
+  mutate: KeyedMutator<Project>;
+}
+
+// ---------------------------------------------------------------------------
 // useProjects — list
 // ---------------------------------------------------------------------------
 
 const PROJECTS_KEY = "/api/v1/projects";
 
-export function useProjects() {
+export function useProjects(): UseProjectsReturn {
   const { data, error, isLoading, mutate } = useSWR<ProjectsResponse>(
     PROJECTS_KEY,
     (url: string) => apiFetch<ProjectsResponse>(url),
@@ -122,10 +146,11 @@ export function useProjects() {
   }
 
   return {
+    data:     data ?? null,
     projects: data?.items ?? [],
-    total: data?.total ?? 0,
+    total:    data?.total ?? 0,
     isLoading,
-    error,
+    error:    error as Error | undefined,
     createProject,
     updateProject,
     deleteProject,
@@ -137,16 +162,17 @@ export function useProjects() {
 // useProject — single project
 // ---------------------------------------------------------------------------
 
-export function useProject(id: string | null) {
+export function useProject(id: string | null): UseProjectReturn {
   const { data, error, isLoading, mutate } = useSWR<Project>(
     id ? `${PROJECTS_KEY}/${id}` : null,
     (url: string) => apiFetch<Project>(url),
   );
 
   return {
-    project: data,
+    data:     data ?? null,
+    project:  data,
     isLoading,
-    error,
+    error:    error as Error | undefined,
     mutate,
   };
 }

@@ -29,6 +29,7 @@ interface CampaignsResponse {
 // ---------------------------------------------------------------------------
 
 export function useCampaigns(projectId?: string): {
+  data: CampaignsResponse | null;
   campaigns: Campaign[];
   total: number;
   isLoading: boolean;
@@ -47,6 +48,7 @@ export function useCampaigns(projectId?: string): {
   );
 
   return {
+    data:      data ?? null,
     campaigns: data?.items ?? [],
     total:     data?.total ?? 0,
     isLoading,
@@ -63,11 +65,23 @@ export default useCampaigns;
 // useCampaign — single campaign by id
 // ---------------------------------------------------------------------------
 
-export function useCampaign(id: string) {
+export function useCampaign(id: string): {
+  data: Campaign | null;
+  campaign: Campaign | null;
+  isLoading: boolean;
+  error: Error | undefined;
+  mutate: KeyedMutator<Campaign>;
+} {
   const { data, error, isLoading, mutate } = useSWR<Campaign>(
     id ? `/api/v1/campaigns/${id}` : null,
     (url: string) => apiFetch<Campaign>(url),
   );
 
-  return { campaign: data ?? null, isLoading, error: error as Error | undefined, mutate };
+  return {
+    data:     data ?? null,
+    campaign: data ?? null,
+    isLoading,
+    error:    error as Error | undefined,
+    mutate,
+  };
 }

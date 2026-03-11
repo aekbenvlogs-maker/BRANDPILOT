@@ -6,7 +6,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import useSWR from "swr";
+import useSWR, { type KeyedMutator } from "swr";
 import { apiFetch, apiPost } from "@/utils/api";
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,13 @@ export interface ContentHistoryItem {
 // useGenerateText
 // ---------------------------------------------------------------------------
 
-export function useGenerateText() {
+export function useGenerateText(): {
+  generate: (input: GenerateTextInput) => Promise<void>;
+  isGenerating: boolean;
+  result: GenerationResult | null;
+  error: string | null;
+  taskId: string | null;
+} {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<GenerationResult | null>(null);
@@ -123,14 +129,26 @@ export function useGenerateText() {
 // useContentHistory
 // ---------------------------------------------------------------------------
 
-export function useContentHistory(projectId: string | undefined) {
-  const { data, error, isLoading } = useSWR<ContentHistoryItem[]>(
+export function useContentHistory(projectId: string | undefined): {
+  data: ContentHistoryItem[] | null;
+  history: ContentHistoryItem[];
+  isLoading: boolean;
+  error: Error | undefined;
+  mutate: KeyedMutator<ContentHistoryItem[]>;
+} {
+  const { data, error, isLoading, mutate } = useSWR<ContentHistoryItem[]>(
     projectId ? `/api/v1/content/history/${projectId}` : null,
     (u: string) => apiFetch<ContentHistoryItem[]>(u),
     { revalidateOnFocus: false },
   );
 
-  return { history: data ?? [], isLoading, error: error as Error | undefined };
+  return {
+    data:     data ?? null,
+    history:  data ?? [],
+    isLoading,
+    error:    error as Error | undefined,
+    mutate,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -152,12 +170,15 @@ export function usePolling(
   taskId: string | null,
   interval = 2_000,
 ): {
+  data: PollStatusResponse | undefined;
   status: PollStatusResponse["status"] | null;
-  result: unknown;
+  result: PollStatusResponse["result"];
+  isLoading: boolean;
   isComplete: boolean;
   error: Error | undefined;
+  mutate: KeyedMutator<PollStatusResponse>;
 } {
-  const { data, error } = useSWR<PollStatusResponse>(
+  const { data, error, isLoading, mutate } = useSWR<PollStatusResponse>(
     taskId ? `/api/v1/content/status/${taskId}` : null,
     (url: string) => apiFetch<PollStatusResponse>(url),
     {
@@ -179,9 +200,12 @@ export function usePolling(
   const isComplete = data ? TERMINAL_STATUSES.has(data.status) : false;
 
   return {
+    data,
     status:     data?.status ?? null,
-    result:     data?.result ?? null,
+    result:     data?.result,
+    isLoading,
     isComplete,
     error:      error as Error | undefined,
+    mutate,
   };
 }

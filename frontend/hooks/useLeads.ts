@@ -80,6 +80,7 @@ export function useLeads(
   /** Accepts a LeadsFilters object OR a legacy project_id string */
   filtersOrProjectId?: LeadsFilters | string,
 ): {
+  data: LeadsResponse | null;
   leads: Lead[];
   total: number;
   isLoading: boolean;
@@ -96,6 +97,7 @@ export function useLeads(
   );
 
   return {
+    data:     data ?? null,
     leads:    data?.items ?? [],
     total:    data?.total ?? 0,
     isLoading,
@@ -112,11 +114,23 @@ export default useLeads;
 // useLead — single lead by id
 // ---------------------------------------------------------------------------
 
-export function useLead(id: string) {
+export function useLead(id: string): {
+  data: Lead | null;
+  lead: Lead | null;
+  isLoading: boolean;
+  error: Error | undefined;
+  mutate: KeyedMutator<Lead>;
+} {
   const { data, error, isLoading, mutate } = useSWR<Lead>(
     id ? `/api/v1/leads/${id}` : null,
     (url: string) => apiFetch<Lead>(url),
   );
 
-  return { lead: data ?? null, isLoading, error: error as Error | undefined, mutate };
+  return {
+    data:  data ?? null,
+    lead:  data ?? null,
+    isLoading,
+    error: error as Error | undefined,
+    mutate,
+  };
 }

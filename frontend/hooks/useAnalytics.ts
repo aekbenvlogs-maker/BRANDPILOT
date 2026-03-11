@@ -2,7 +2,7 @@
 // PROJECT      : BRANDSCALE
 // FILE         : frontend/hooks/useAnalytics.ts
 // ============================================================
-import useSWR from "swr";
+import useSWR, { type KeyedMutator } from "swr";
 import { apiFetch } from "@/utils/api";
 
 // ---------------------------------------------------------------------------
@@ -50,20 +50,24 @@ export type DashboardStats = AnalyticsSummary;
 // ---------------------------------------------------------------------------
 
 export function useDashboardStats(): {
+  data: DashboardStats | null;
   stats: DashboardStats | null;
   isLoading: boolean;
   error: Error | undefined;
+  mutate: KeyedMutator<DashboardStats>;
 } {
-  const { data, isLoading, error } = useSWR<DashboardStats>(
+  const { data, isLoading, error, mutate } = useSWR<DashboardStats>(
     "/api/v1/analytics/summary",
     (url: string) => apiFetch<DashboardStats>(url),
     { revalidateOnFocus: true, refreshInterval: 60_000 },
   );
 
   return {
+    data:     data ?? null,
     stats:    data ?? null,
     isLoading,
     error:    error as Error | undefined,
+    mutate,
   };
 }
 
@@ -75,13 +79,25 @@ export interface CampaignAnalytics {
   conversion_rate: number;
 }
 
-export default function useAnalytics(campaignId?: string) {
-  const summaryKey = "/api/v1/analytics/dashboard";
+export function useAnalytics(campaignId?: string): {
+  data: AnalyticsSummary | null;
+  summary: AnalyticsSummary | undefined;
+  campaignData: CampaignAnalytics | undefined;
+  isLoading: boolean;
+  error: Error | undefined;
+  mutate: KeyedMutator<AnalyticsSummary>;
+} {
+  const summaryKey = "/api/v1/analytics/summary";
   const campaignKey = campaignId
     ? `/api/v1/analytics/campaigns/${campaignId}/email-stats`
     : null;
 
-  const { data: summary, isLoading: summaryLoading } = useSWR<AnalyticsSummary, Error>(
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    error: summaryError,
+    mutate,
+  } = useSWR<AnalyticsSummary, Error>(
     summaryKey,
     (url: string) => apiFetch<AnalyticsSummary>(url),
     { refreshInterval: 60_000 },
@@ -91,8 +107,13 @@ export default function useAnalytics(campaignId?: string) {
     useSWR<CampaignAnalytics>(campaignKey, (url: string) => apiFetch<CampaignAnalytics>(url));
 
   return {
+    data:      summary ?? null,
     summary,
     campaignData,
     isLoading: summaryLoading || campaignLoading,
+    error:     summaryError,
+    mutate,
   };
 }
+
+export default useAnalytics;
