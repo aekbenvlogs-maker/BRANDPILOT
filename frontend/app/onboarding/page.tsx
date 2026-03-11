@@ -20,7 +20,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { useProjects } from "@/hooks/useProjects";
-import { useGenerateText } from "@/hooks/useContentGeneration";
+import { usePolling } from "@/hooks/useContentGeneration";
 import { apiPost, apiPatch } from "@/utils/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -324,8 +324,28 @@ export default function OnboardingPage() {
   const { isLoading: authLoading }                    = useAuth();
   const { projects, isLoading: projectsLoading }      = useProjects();
   const { showToast }                                  = useToast();
-  const { generate, isGenerating, result: genResult, error: genError } =
-    useGenerateText();
+
+  // Step 3: polling task state
+  const [taskId,          setTaskId]          = useState<string | null>(null);
+  const [isSubmittingGen, setIsSubmittingGen]  = useState(false);
+
+  const {
+    result:     pollResult,
+    status:     pollStatus,
+    isComplete: pollDone,
+    error:      pollError,
+  } = usePolling(taskId);
+
+  // Derived helpers consumed by the render
+  const isGenerating = isSubmittingGen || (taskId !== null && !pollDone);
+  const genResult =
+    pollDone && pollStatus !== "failed"
+      ? (pollResult as { text: string; hashtags: string[] } | undefined)
+      : null;
+  const genError =
+    pollDone && pollStatus === "failed"
+      ? (pollError?.message ?? "La génération a échoué.")
+      : null;
 
   const [wiz, dispatch]       = useReducer(wizardReducer, initialState);
   const [isCreating, setIsCreating] = useState(false);
@@ -339,10 +359,12 @@ export default function OnboardingPage() {
     }
   }, [authLoading, projectsLoading, projects, router]);
 
-  // Mark generation as successful
+  // Mark generation as successful when polling reaches a terminal success status
   useEffect(() => {
-    if (genResult) dispatch({ type: "GEN_OK" });
-  }, [genResult]);
+    if (pollDone && pollStatus !== "failed" && pollResult) {
+      dispatch({ type: "GEN_OK" });
+    }
+  }, [pollDone, pollStatus, pollResult]);
 
   // Step 1 form
   const {
@@ -407,19 +429,33 @@ export default function OnboardingPage() {
 
   async function onGenerate() {
     if (!wiz.brief.trim() || !wiz.projectId) return;
-    const platform = wiz.platforms[0] as
-      | "instagram"
-      | "tiktok"
-      | "youtube"
-      | "x"
-      | "email"
-      | "linkedin";
-    await generate({
-      platform,
-      brief:      wiz.brief,
-      tone:       wiz.tone ?? undefined,
-      project_id: wiz.projectId,
-    });
+    // Reset any previous task so polling doesn't flash stale data
+    setTaskId(null);
+    setIsSubmittingGen(true);
+    try {
+      const platform = wiz.platforms[0] as
+        | "instagram"
+        | "tiktok"
+        | "youtube"
+        | "x"
+        | "email"
+        | "linkedin";
+      const res = await apiPost<{ task_id: string }>(
+        "/api/v1/content/text/generate",
+        {
+          platform,
+          brief:      wiz.brief,
+          tone:       wiz.tone ?? undefined,
+          project_id: wiz.projectId,
+        },
+      );
+      setTaskId(res.task_id);
+      // SWR usePolling takes over from here
+    } catch {
+      showToast("Erreur lors du lancement de la génération.", "error");
+    } finally {
+      setIsSubmittingGen(false);
+    }
   }
 
   function handleCopy() {
