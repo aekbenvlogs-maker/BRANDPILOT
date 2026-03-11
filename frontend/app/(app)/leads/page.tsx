@@ -55,9 +55,10 @@ function LeadsContent() {
       let attempts = 0;
       const poll = setInterval(() => {
         attempts++;
-        void mutate().then(() => {
-          const lead = leads.find((l) => l.id === leadId);
-          if (lead?.score !== null || attempts >= 15) {
+        void mutate().then((resp) => {
+          // Use the fresh response from mutate — never the stale closure value
+          const found = resp?.items.find((l) => l.id === leadId);
+          if ((found !== undefined && found.score !== null) || attempts >= 15) {
             clearInterval(poll);
             setScoringIds((prev) => {
               const next = new Set(prev);
@@ -68,7 +69,7 @@ function LeadsContent() {
         });
       }, 2000);
     },
-    [leads, mutate],
+    [mutate], // `leads` removed — we read from mutate's return value
   );
 
   const handleRescore = useCallback(
