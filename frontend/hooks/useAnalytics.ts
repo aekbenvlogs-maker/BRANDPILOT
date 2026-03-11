@@ -5,18 +5,48 @@
 import useSWR from "swr";
 import { apiFetch } from "@/utils/api";
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface ActivityItem {
+  id: string;
+  type: string;
+  label: string;
+  created_at: string;
+}
+
 export interface AnalyticsSummary {
+  // Core email metrics
   total_emails_sent: number;
   avg_open_rate: number;
-  avg_click_rate: number;
-  avg_conversion_rate: number;
+  avg_ctr: number;
+  total_conversions: number;
+  total_ai_cost_usd: number;
+  // Counts
+  active_campaigns: number;
+  total_leads: number;
+  hot_leads: number;
+  warm_leads: number;
+  cold_leads: number;
+  // Optional period info
+  period_start?: string | null;
+  period_end?: string | null;
+  // Optional — future backend fields for month-over-month deltas (%)
+  delta_leads?: number;
+  delta_content?: number;
+  delta_campaigns?: number;
+  delta_conversion?: number;
+  // Optional — content count + recent activity feed
+  content_generated?: number;
+  recent_activity?: ActivityItem[];
 }
 
 // Re-exported alias so consumers can use the more descriptive name
 export type DashboardStats = AnalyticsSummary;
 
 // ---------------------------------------------------------------------------
-// useDashboardStats — GET /api/v1/analytics/dashboard
+// useDashboardStats — GET /api/v1/analytics/summary
 // ---------------------------------------------------------------------------
 
 export function useDashboardStats(): {
@@ -25,7 +55,7 @@ export function useDashboardStats(): {
   error: Error | undefined;
 } {
   const { data, isLoading, error } = useSWR<DashboardStats>(
-    "/api/v1/analytics/dashboard",
+    "/api/v1/analytics/summary",
     (url: string) => apiFetch<DashboardStats>(url),
     { revalidateOnFocus: true, refreshInterval: 60_000 },
   );

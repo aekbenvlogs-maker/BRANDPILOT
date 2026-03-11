@@ -22,7 +22,7 @@ export type { Campaign } from "./useCampaigns";
 
 // --- Analytics --------------------------------------------------------------
 export { useDashboardStats } from "./useAnalytics";
-export type { DashboardStats, AnalyticsSummary, CampaignAnalytics } from "./useAnalytics";
+export type { DashboardStats, AnalyticsSummary, CampaignAnalytics, ActivityItem } from "./useAnalytics";
 
 // --- Content generation + polling -------------------------------------------
 export { useGenerateText, useContentHistory, usePolling } from "./useContentGeneration";

@@ -18,8 +18,10 @@ import { formatPercent, formatNumber } from "@/utils/formatters";
 interface DashboardAnalytics {
   total_emails_sent: number;
   avg_open_rate: number;
-  avg_click_rate: number;
-  avg_conversion_rate: number;
+  avg_ctr: number;
+  total_conversions: number;
+  active_campaigns: number;
+  total_leads: number;
 }
 
 function KpiCard({
@@ -52,7 +54,7 @@ function KpiCard({
 
 export default function AnalyticsPage() {
   const { data, isLoading, error } = useSWR<DashboardAnalytics>(
-    "/api/v1/analytics/dashboard",
+    "/api/v1/analytics/summary",
     (url: string) => apiFetch<DashboardAnalytics>(url),
     { revalidateOnFocus: true },
   );
@@ -78,13 +80,13 @@ export default function AnalyticsPage() {
     {
       icon: MousePointerClick,
       label: "Taux de clic moyen",
-      value: formatPercent(data?.avg_click_rate),
+      value: formatPercent(data?.avg_ctr),
       color: "bg-violet-500",
     },
     {
       icon: TrendingUp,
       label: "Taux de conversion",
-      value: formatPercent(data?.avg_conversion_rate),
+      value: formatNumber(data?.total_conversions),
       color: "bg-amber-500",
     },
   ];
