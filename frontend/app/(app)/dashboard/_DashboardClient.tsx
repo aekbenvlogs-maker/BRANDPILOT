@@ -69,7 +69,10 @@ interface KpiCardProps {
 
 function KpiCard({ icon: Icon, label, value, color, delta }: KpiCardProps) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+    <div
+      data-testid="kpi-card"
+      className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900"
+    >
       <div
         className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${color}`}
         aria-hidden="true"

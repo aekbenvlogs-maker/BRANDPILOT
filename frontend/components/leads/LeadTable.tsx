@@ -317,7 +317,10 @@ export function LeadTable({
                     {/* Tier — spinner if scoring */}
                     <td className="px-4 py-3">
                       {isScoring ? (
-                        <span className="flex items-center gap-1 text-xs text-gray-400">
+                        <span
+                          data-testid="scoring-spinner"
+                          className="flex items-center gap-1 text-xs text-gray-400"
+                        >
                           <Loader2
                             className="h-3.5 w-3.5 animate-spin"
                             aria-hidden="true"

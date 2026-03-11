@@ -730,7 +730,7 @@ export default function ContentNewPage() {
             STEP 3 — RESULT
         ════════════════════════════════════════════════════════════════════ */}
         {step === "result" && savedResult && (
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <div data-testid="content-result" className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             {/* ── Left — editable content ───────────────────────────────── */}
             <div className="flex flex-col gap-5">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
