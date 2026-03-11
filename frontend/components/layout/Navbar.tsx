@@ -39,7 +39,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           href="/dashboard"
           className="text-lg font-bold tracking-tight text-gray-900 dark:text-white"
         >
-          BRAND<span className="text-indigo-500">PILOT</span>
+          BRAND<span className="text-indigo-500">SCALE</span>
         </Link>
       </div>
 

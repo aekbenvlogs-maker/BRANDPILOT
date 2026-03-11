@@ -22,8 +22,10 @@ export interface CampaignAnalytics {
 }
 
 export default function useAnalytics(campaignId?: string) {
-  const summaryKey = "/api/v1/analytics/summary";
-  const campaignKey = campaignId ? `/api/v1/analytics/${campaignId}` : null;
+  const summaryKey = "/api/v1/analytics/dashboard";
+  const campaignKey = campaignId
+    ? `/api/v1/analytics/campaigns/${campaignId}/email-stats`
+    : null;
 
   const { data: summary, isLoading: summaryLoading } = useSWR<AnalyticsSummary, Error>(
     summaryKey,
