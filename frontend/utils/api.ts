@@ -145,9 +145,14 @@ async function doRefresh(): Promise<string> {
       throw new ApiError(401, "Refresh expiré.", "REFRESH_FAILED");
     }
 
-    const data = (await res.json()) as { access_token: string };
+    // Backend rotates refresh tokens — store both
+    const data = (await res.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
     if (typeof window !== "undefined") {
       localStorage.setItem(TOKEN_KEY, data.access_token);
+      localStorage.setItem(REFRESH_KEY, data.refresh_token);
     }
     return data.access_token;
   })().finally(() => {
@@ -286,6 +291,14 @@ export const contentApi   = new ApiClient("/api/v1/content");
 export const campaignsApi = new ApiClient("/api/v1/campaigns");
 export const analyticsApi = new ApiClient("/api/v1/analytics");
 export const scoringApi   = new ApiClient("/api/v1/scoring");
+
+/**
+ * Refresh the access token using the stored refresh token.
+ * Shares the singleton mutex in api.ts — safe to call concurrently.
+ * Also stores the new refresh_token from token rotation.
+ * Throws ApiError on failure (caller must handle).
+ */
+export { doRefresh as refreshAccessToken };
 
 // ---------------------------------------------------------------------------
 // Backward-compat standalone helpers (used by 28+ existing files)

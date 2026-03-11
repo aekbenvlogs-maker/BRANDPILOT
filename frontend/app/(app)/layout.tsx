@@ -24,8 +24,11 @@ export default function AuthenticatedLayout({
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Prevent flash of authenticated UI while session is being verified
-  if (isLoading) {
+  // Keep showing the skeleton:
+  //   • while the initial GET /auth/me is in flight (isLoading)
+  //   • after loadUser resolves to unauthenticated, until router.replace fires
+  // This eliminates the one-frame blank screen ("flash") between the two states.
+  if (isLoading || !isAuthenticated) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-8">
         <Skeleton variant="rect" width="240px" height="20px" />
@@ -34,8 +37,6 @@ export default function AuthenticatedLayout({
       </div>
     );
   }
-
-  if (!isAuthenticated) return null;
 
   return <AppLayout>{children}</AppLayout>;
 }

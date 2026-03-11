@@ -13,11 +13,10 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch, apiPost } from "@/utils/api";
+import { apiPost, authApi, refreshAccessToken } from "@/utils/api";
 import {
   clearAccessToken,
   getAccessToken,
-  getUserFromToken,
   isTokenExpired,
   setAccessToken,
 } from "@/utils/auth";
@@ -29,8 +28,8 @@ import {
 export interface AuthUser {
   id: string;
   email: string;
-  first_name: string;
-  last_name: string;
+  first_name: string | null;
+  last_name: string | null;
   created_at: string;
   onboarding_done?: boolean;
 }
@@ -72,16 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ------------------------------------------------------------------
 
   const refreshToken = useCallback(async (): Promise<void> => {
-    const refresh = typeof window !== "undefined"
-      ? localStorage.getItem("bs_refresh_token")
-      : null;
-    if (!refresh) throw new Error("No refresh token");
-
-    const data = await apiPost<{ access_token: string }>(
-      "/api/v1/auth/refresh",
-      { refresh_token: refresh },
-    );
-    setAccessToken(data.access_token);
+    // Delegates to the singleton doRefresh in api.ts:
+    // • uses a mutex to prevent concurrent refresh storms
+    // • sends NO Authorization header (refresh endpoint doesn’t need it)
+    // • stores both the new access_token and the rotated refresh_token
+    await refreshAccessToken();
   }, []);
 
   // ------------------------------------------------------------------
@@ -108,7 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const me = await apiFetch<AuthUser>("/api/v1/auth/me");
+      // authApi.get retries once with a fresh token on 401
+      const me = await authApi.get<AuthUser>("/me");
       setUser(me);
     } catch {
       clearAccessToken();
@@ -156,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch full profile — sets user with all required fields
       try {
-        const me = await apiFetch<AuthUser>("/api/v1/auth/me");
+        const me = await authApi.get<AuthUser>("/me");
         setUser(me);
       } catch {
         // /auth/me will be retried on next mount via loadUser()
@@ -194,7 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch full profile immediately so context is populated before redirect
       try {
-        const me = await apiFetch<AuthUser>("/api/v1/auth/me");
+        const me = await authApi.get<AuthUser>("/me");
         setUser(me);
       } catch {
         // proceed with partial user — /auth/me will be retried on next mount
