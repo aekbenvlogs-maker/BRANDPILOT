@@ -21,7 +21,7 @@ Mount in main.py (optional):
     app.mount("/agent", campaign_agent_app)
 
 Or run standalone:
-    uvicorn microservices.campaign_agent.api:app --port 8001
+    uvicorn microservices.campaign_agent.main:app --port 8006
 """
 
 from __future__ import annotations

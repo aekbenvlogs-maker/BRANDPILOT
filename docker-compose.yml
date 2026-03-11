@@ -276,14 +276,14 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # ── Celery Beat (periodic tasks — RGPD purge etc.) ──────────────────
+  # ── Celery Beat (periodic tasks — RGPD purge, analytics) ─────────────
   celery_beat:
     build:
       context: .
       dockerfile: Dockerfile.backend
     command: >
-      celery -A microservices.workflow._celery beat
-      --loglevel=info
+      celery -A microservices.workflow:celery_app beat
+      --loglevel=info --schedule=/tmp/celerybeat-schedule
     environment:
       <<: *common-env
     env_file: .env
@@ -294,14 +294,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ── Celery Flower ────────────────────────────────────────
+  # ── Celery Flower — monitors ALL workers via shared broker ─────────────
   celery_flower:
     build:
       context: .
       dockerfile: Dockerfile.backend
     command: >
-      celery -A microservices.bs_ai_text.worker.celery_app flower
-      --port=5555 --basic_auth=brandscale:brandscale
+      celery --broker=redis://redis:6379/1 flower
+      --port=5555
+      --basic_auth=${FLOWER_BASIC_AUTH:-brandscale:brandscale}
+      --max_tasks=1000
     environment:
       <<: *common-env
     env_file: .env
@@ -309,6 +311,49 @@ services:
       - "5555:5555"
     depends_on:
       - redis
+    restart: unless-stopped
+
+  # ── Celery Worker ─ workflow (RGPD purge + L2C pipeline) ──────────────
+  celery_workflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: >
+      celery -A microservices.workflow:celery_app worker
+      --loglevel=info --concurrency=2 --hostname=worker_workflow@%h
+      -Q celery
+    environment:
+      <<: *common-env
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Microservice ─ campaign_agent (port 8006) ────────────────────────
+  campaign_agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: uvicorn microservices.campaign_agent.main:app --host 0.0.0.0 --port 8006
+    environment:
+      <<: *common-env
+    env_file: .env
+    ports:
+      - "8006:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import httpx; httpx.get('http://localhost:8006/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped
 
   # ── Frontend ─────────────────────────────────────────────

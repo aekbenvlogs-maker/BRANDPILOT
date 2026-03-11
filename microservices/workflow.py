@@ -31,17 +31,26 @@ from microservices.bs_scoring.worker import task_rank_leads, task_score_lead
 
 settings = get_settings()
 
-_celery = Celery(
+# Public name required for Celery -A auto-discovery
+celery_app = Celery(
     "workflow",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
 )
 
-# Celery beat schedule — periodic tasks
-_celery.conf.beat_schedule = {
+celery_app.conf.update(
+    task_serializer="json",
+    result_serializer="json",
+    accept_content=["json"],
+    timezone="Europe/Paris",
+    enable_utc=True,
+)
+
+# Celery Beat schedule — periodic tasks (purge RGPD, analytics aggregation)
+celery_app.conf.beat_schedule = {
     "rgpd-lead-purge": {
         "task": "brandscale.purge_expired_leads",
-        "schedule": crontab(hour=2, minute=0),  # 02:00 UTC every day
+        "schedule": crontab(hour=2, minute=0),  # 02:00 UTC daily
     },
 }
 
@@ -323,7 +332,7 @@ def _build_recommendations(
 # ─── Celery Entry Point ───────────────────────────────────────────────────────
 
 
-@_celery.task(
+@celery_app.task(
     bind=True, name="workflow.run_l2c_pipeline", max_retries=3, default_retry_delay=30
 )
 def run_l2c_pipeline(self: Any, campaign_id: str) -> dict[str, Any]:
@@ -400,7 +409,7 @@ def run_l2c_pipeline(self: Any, campaign_id: str) -> dict[str, Any]:
 # ─── RGPD Periodic Task ───────────────────────────────────────────────────────
 
 
-@_celery.task(name="brandscale.purge_expired_leads")
+@celery_app.task(name="brandscale.purge_expired_leads")
 def purge_expired_leads() -> dict[str, int]:
     """
     RGPD art. 5 data-minimisation: delete leads older than data_retention_days.

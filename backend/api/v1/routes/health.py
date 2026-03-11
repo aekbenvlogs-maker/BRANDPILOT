@@ -28,11 +28,12 @@ settings = get_settings()
 
 # Microservice health endpoints — use Docker service names (not localhost)
 _MICROSERVICES: dict[str, str] = {
-    "bs_ai_text": "http://bs_ai_text:8001/health",
-    "bs_ai_image": "http://bs_ai_image:8002/health",
-    "bs_ai_video": "http://bs_ai_video:8003/health",
-    "bs_email": "http://bs_email:8004/health",
-    "bs_scoring": "http://bs_scoring:8005/health",
+    "bs_ai_text":      "http://bs_ai_text:8001/health",
+    "bs_ai_image":     "http://bs_ai_image:8002/health",
+    "bs_ai_video":     "http://bs_ai_video:8003/health",
+    "bs_email":        "http://bs_email:8004/health",
+    "bs_scoring":      "http://bs_scoring:8005/health",
+    "campaign_agent":  "http://campaign_agent:8006/health",
 }
 
 
