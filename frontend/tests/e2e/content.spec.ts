@@ -14,7 +14,19 @@ const FIXTURE = {
   password: "Test1234!",
 };
 
-const FAKE_TASK_ID = "test-task-abc123";
+const FAKE_TASK_ID    = "test-task-abc123";
+const FAKE_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
+const FAKE_PROJECT    = {
+  id:          FAKE_PROJECT_ID,
+  name:        "Projet Test E2E",
+  sector:      "mode",
+  tone:        "professionnel",
+  brand_url:   null,
+  description: null,
+  created_at:  "2024-01-01T00:00:00Z",
+  updated_at:  null,
+};
+
 const MOCK_RESULT = {
   task_id: FAKE_TASK_ID,
   status:  "done",
@@ -40,6 +52,15 @@ async function login(page: Page, baseURL: string) {
 // Returns the mock route handlers so they can be awaited/removed if needed
 // ---------------------------------------------------------------------------
 async function setupCIMocks(page: Page) {
+  // Mock GET /api/v1/projects → return exactly one project (project_id is a required UUID)
+  await page.route("**/api/v1/projects", (route) => {
+    void route.fulfill({
+      status:      200,
+      contentType: "application/json",
+      body:        JSON.stringify({ items: [FAKE_PROJECT], total: 1 }),
+    });
+  });
+
   // Mock POST /api/v1/content/text/generate → return a fake task_id
   await page.route("**/api/v1/content/text/generate", (route) => {
     void route.fulfill({
@@ -89,11 +110,14 @@ test.describe("Génération de contenu", () => {
       page.getByRole("heading", { name: /générer du contenu/i }),
     ).toBeVisible();
 
-    // ── 2. Select Instagram platform ───────────────────────────────────────
+    // ── 2. Select the project (required UUID field) ─────────────────────────
+    await page.locator("#project_id").selectOption(FAKE_PROJECT_ID);
+
+    // ── 3. Select Instagram platform ───────────────────────────────────────
     // Platform buttons are rendered as buttons or tabs — click by label
     await page.getByRole("button", { name: /instagram/i }).first().click();
 
-    // ── 3. Fill brief (> 20 chars) ─────────────────────────────────────────
+    // ── 4. Fill brief (> 20 chars) ─────────────────────────────────────────
     const briefInput = page.getByLabel(/brief|de quoi/i).or(
       page.locator("textarea").first(),
     );
@@ -101,14 +125,14 @@ test.describe("Génération de contenu", () => {
       "Notre nouvelle collection printemps vient de sortir avec des couleurs éclatantes.",
     );
 
-    // ── 4. Click "Générer" ─────────────────────────────────────────────────
+    // ── 5. Click "Générer" ─────────────────────────────────────────────────
     await page.getByRole("button", { name: /✨\s*générer|générer/i }).click();
 
-    // ── 5. Wait for .content-result to be visible (timeout 30s) ───────────
+    // ── 6. Wait for .content-result to be visible (timeout 30s) ───────────
     const resultSection = page.locator("[data-testid='content-result']");
     await expect(resultSection).toBeVisible({ timeout: 30_000 });
 
-    // ── 6. Verify hashtags are present in the result ───────────────────────
+    // ── 7. Verify hashtags are present in the result ───────────────────────
     // Hashtag buttons / chips should contain # tags
     const hashtagChips = resultSection.locator("button").filter({
       hasText: /^#?[a-z]/i,

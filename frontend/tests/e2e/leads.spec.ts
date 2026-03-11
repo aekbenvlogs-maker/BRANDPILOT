@@ -22,6 +22,20 @@ const TEST_LEAD = {
   company:    "Acme Corp E2E",
 };
 
+// Fake project returned by the mocked /api/v1/projects endpoint
+// project_id must be a valid UUID (Zod validates it in the lead form)
+const FAKE_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
+const FAKE_PROJECT    = {
+  id:          FAKE_PROJECT_ID,
+  name:        "Projet Test E2E",
+  sector:      "mode",
+  tone:        "professionnel",
+  brand_url:   null,
+  description: null,
+  created_at:  "2024-01-01T00:00:00Z",
+  updated_at:  null,
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -33,34 +47,6 @@ async function login(page: Page, baseURL: string) {
   await page.waitForURL(`${baseURL}/dashboard`, { timeout: 15_000 });
 }
 
-/** Intercept scoring endpoint so the spinner appears briefly then resolves */
-async function mockScoringEndpoints(page: Page, leadId: string) {
-  // Initial "processing" response
-  let callCount = 0;
-
-  await page.route(`**/score/${leadId}`, (route) => {
-    void route.fulfill({
-      status:      200,
-      contentType: "application/json",
-      body:        JSON.stringify({ task_id: `score-task-${leadId}` }),
-    });
-  });
-
-  // Return null score first, then a real score so the spinner is visible momentarily
-  await page.route(`**/api/v1/leads*`, async (route) => {
-    const res = await route.fetch();
-    const body = await res.json() as { items?: Array<{ id: string; score: unknown }> };
-    if (body.items && callCount < 2) {
-      callCount++;
-      // First refetch: score still null so spinner stays
-      body.items = body.items.map((l) =>
-        l.id === leadId ? { ...l, score: null, score_tier: null } : l,
-      );
-    }
-    await route.fulfill({ response: res, json: body });
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Suite
 // ---------------------------------------------------------------------------
@@ -68,6 +54,15 @@ test.describe("Leads — création + validation RGPD + scoring", () => {
   test.setTimeout(45_000);
 
   test.beforeEach(async ({ page, baseURL }) => {
+    // Mock GET /api/v1/projects before login so the button is never disabled
+    // (activeProject = projects[0].id when there is exactly 1 project)
+    await page.route("**/api/v1/projects", (route) => {
+      void route.fulfill({
+        status:      200,
+        contentType: "application/json",
+        body:        JSON.stringify({ items: [FAKE_PROJECT], total: 1 }),
+      });
+    });
     await login(page, baseURL ?? "http://localhost:3000");
   });
 
@@ -105,53 +100,53 @@ test.describe("Leads — création + validation RGPD + scoring", () => {
     // Mock the lead creation response so we get a known ID back
     const LEAD_ID = `lead-${Date.now()}`;
 
-    await page.route("**/api/v1/leads", async (route) => {
+    const fakeLead = {
+      id:          LEAD_ID,
+      email:       TEST_LEAD.email,
+      first_name:  TEST_LEAD.firstName,
+      last_name:   TEST_LEAD.lastName,
+      company:     TEST_LEAD.company,
+      source:      null,
+      opt_in:      true,
+      score:       null,       // null → triggers scoring spinner immediately
+      score_tier:  null,
+      project_id:  FAKE_PROJECT_ID,
+      created_at:  new Date().toISOString(),
+    };
+
+    // Single handler for ALL /api/v1/leads requests (with or without query params).
+    // **/api/v1/leads* matches ?project_id=… (no slash), but NOT /api/v1/leads/123
+    await page.route("**/api/v1/leads*", async (route) => {
       if (route.request().method() === "POST") {
         await route.fulfill({
           status:      201,
           contentType: "application/json",
-          body: JSON.stringify({
-            id:          LEAD_ID,
-            email:       TEST_LEAD.email,
-            first_name:  TEST_LEAD.firstName,
-            last_name:   TEST_LEAD.lastName,
-            company:     TEST_LEAD.company,
-            source:      null,
-            opt_in:      true,
-            score:       null,       // null → triggers scoring spinner
-            score_tier:  null,
-            project_id:  "proj-test",
-            created_at:  new Date().toISOString(),
-          }),
+          body:        JSON.stringify(fakeLead),
         });
       } else {
-        // GET — return the lead in the list
         await route.fulfill({
           status:      200,
           contentType: "application/json",
-          body: JSON.stringify({
-            items: [
-              {
-                id:          LEAD_ID,
-                email:       TEST_LEAD.email,
-                first_name:  TEST_LEAD.firstName,
-                last_name:   TEST_LEAD.lastName,
-                company:     TEST_LEAD.company,
-                source:      null,
-                opt_in:      true,
-                score:       null,
-                score_tier:  null,
-                project_id:  "proj-test",
-                created_at:  new Date().toISOString(),
-              },
-            ],
-            total: 1,
-          }),
+          body:        JSON.stringify({ items: [fakeLead], total: 1 }),
         });
       }
     });
 
-    await mockScoringEndpoints(page, LEAD_ID);
+    // Intercept scoring calls so they never reach the real backend
+    await page.route(`**/api/v1/leads/${LEAD_ID}/rescore`, (route) => {
+      void route.fulfill({
+        status:      200,
+        contentType: "application/json",
+        body:        JSON.stringify({ task_id: `score-task-${LEAD_ID}` }),
+      });
+    });
+    await page.route(`**/score/${LEAD_ID}`, (route) => {
+      void route.fulfill({
+        status:      200,
+        contentType: "application/json",
+        body:        JSON.stringify({ task_id: `score-task-${LEAD_ID}` }),
+      });
+    });
 
     await page.goto("/leads");
 

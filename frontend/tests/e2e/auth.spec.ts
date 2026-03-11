@@ -39,6 +39,14 @@ test.describe("Parcours — Register → Onboarding → Dashboard", () => {
     await resetTestDB(baseURL ?? "http://localhost:3000");
   });
 
+  test.afterAll(async ({ request }) => {
+    // Delete the test user so each run starts clean.
+    // Non-blocking: the test endpoint may not exist in all environments.
+    await request
+      .post("/api/v1/test/cleanup", { data: { email: FIXTURE.email } })
+      .catch(() => undefined);
+  });
+
   test("nouvel utilisateur s'inscrit, complète l'onboarding et voit les KPI cards", async ({
     page,
   }) => {
