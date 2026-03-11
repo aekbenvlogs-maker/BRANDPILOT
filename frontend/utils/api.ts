@@ -1,20 +1,32 @@
 // ============================================================
-// PROJECT      : BRANDPILOT
+// PROJECT      : BRANDSCALE
 // FILE         : frontend/utils/api.ts
-// DESCRIPTION  : Typed fetch wrapper — production-grade, typed errors
+// DESCRIPTION  : Production API client — typed errors, refresh-retry,
+//                named instances per domain + backward-compat helpers
 // ============================================================
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? ""; // Empty = relative path → Next.js rewrites proxy to backend
-
 // ---------------------------------------------------------------------------
-// Typed error classes
+// Config
 // ---------------------------------------------------------------------------
 
+const BASE_URL: string =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? ""; // "" → Next.js rewrites proxy
+
+// ---------------------------------------------------------------------------
+// Error types
+// ---------------------------------------------------------------------------
+
+/**
+ * Base typed error for all API failures.
+ * `code`  — machine-readable identifier (e.g. "UNAUTHORIZED", "NETWORK_ERROR")
+ * `field` — populated for 422 single-field errors
+ */
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    public readonly code: string = "API_ERROR",
+    public readonly field?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -22,8 +34,8 @@ export class ApiError extends Error {
 }
 
 export class ForbiddenError extends ApiError {
-  constructor(message = "Forbidden") {
-    super(403, message);
+  constructor(message = "Accès refusé.") {
+    super(403, message, "FORBIDDEN");
     this.name = "ForbiddenError";
   }
 }
@@ -35,59 +47,47 @@ export interface ValidationFieldError {
 
 export class ValidationError extends ApiError {
   constructor(public readonly errors: ValidationFieldError[]) {
-    super(422, "Validation error");
+    super(422, "Données invalides.", "VALIDATION_ERROR");
     this.name = "ValidationError";
   }
 }
 
 export class ServerError extends ApiError {
   constructor(status: number) {
-    super(status, `Server error ${status}`);
+    super(status, `Erreur serveur (${status}). Réessayez plus tard.`, "SERVER_ERROR");
     this.name = "ServerError";
   }
 }
 
 // ---------------------------------------------------------------------------
-// Core fetch wrapper
+// Token helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Centralised fetch wrapper.
- * - Prepends NEXT_PUBLIC_API_BASE_URL
- * - Injects Bearer token from localStorage
- * - Dispatches "auth:expired" custom event on 401
- * - Throws typed errors for 403 / 422 / 4xx / 5xx
- */
-export async function apiFetch<T = unknown>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("bs_token") : null;
+const TOKEN_KEY = "bs_token";
+const REFRESH_KEY = "bs_refresh_token";
 
-  const isFormData = options.body instanceof FormData;
+function readToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
 
-  const headers: Record<string, string> = {
-    ...(isFormData ? {} : { "Content-Type": "application/json" }),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers as Record<string, string>),
-  };
+/** @deprecated Use utils/auth.ts setAccessToken instead */
+export function setToken(token: string): void {
+  if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, token);
+}
 
-  const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
+/** @deprecated Use utils/auth.ts clearAccessToken instead */
+export function clearToken(): void {
+  if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+}
 
-  const response = await fetch(url, { ...options, headers });
+// ---------------------------------------------------------------------------
+// Response parser — shared between apiFetch and ApiClient
+// ---------------------------------------------------------------------------
 
-  if (response.status === 401) {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("bs_token");
-      localStorage.removeItem("bs_refresh_token");
-      window.dispatchEvent(new CustomEvent("auth:expired"));
-    }
-    throw new ApiError(401, "Unauthorized");
-  }
-
+async function parseResponse<T>(response: Response): Promise<T> {
   if (response.status === 403) {
-    const detail = await response.text().catch(() => "Forbidden");
+    const detail = await response.text().catch(() => "Accès refusé.");
     throw new ForbiddenError(detail);
   }
 
@@ -107,11 +107,14 @@ export async function apiFetch<T = unknown>(
   }
 
   if (!response.ok) {
-    const detail = await response.text().catch(() => "Unknown error");
+    const detail = await response.text().catch(() => "Erreur inconnue.");
     throw new ApiError(response.status, detail);
   }
 
   const contentType = response.headers.get("content-type") ?? "";
+  if (response.status === 204 || contentType === "") {
+    return undefined as unknown as T;
+  }
   if (contentType.includes("application/json")) {
     return response.json() as Promise<T>;
   }
@@ -119,8 +122,204 @@ export async function apiFetch<T = unknown>(
 }
 
 // ---------------------------------------------------------------------------
-// HTTP method helpers
+// Refresh mutex — prevents concurrent refresh storms
 // ---------------------------------------------------------------------------
+
+let _refreshPromise: Promise<string> | null = null;
+
+async function doRefresh(): Promise<string> {
+  if (_refreshPromise) return _refreshPromise;
+
+  _refreshPromise = (async (): Promise<string> => {
+    const refresh =
+      typeof window !== "undefined" ? localStorage.getItem(REFRESH_KEY) : null;
+    if (!refresh) throw new ApiError(401, "Pas de refresh token.", "NO_REFRESH_TOKEN");
+
+    const res = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+
+    if (!res.ok) {
+      throw new ApiError(401, "Refresh expiré.", "REFRESH_FAILED");
+    }
+
+    const data = (await res.json()) as { access_token: string };
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TOKEN_KEY, data.access_token);
+    }
+    return data.access_token;
+  })().finally(() => {
+    _refreshPromise = null;
+  });
+
+  return _refreshPromise;
+}
+
+function expireSession(): void {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+    window.dispatchEvent(new CustomEvent("auth:expired"));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ApiClient — domain-scoped, refresh-retry, strict TypeScript
+// ---------------------------------------------------------------------------
+
+export class ApiClient {
+  constructor(private readonly prefix: string) {}
+
+  // ── Internal fetch with refresh-retry ────────────────────────────────────
+
+  private buildHeaders(
+    extra?: Record<string, string>,
+    isFormData = false,
+  ): Record<string, string> {
+    const token = readToken();
+    return {
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(extra ?? {}),
+    };
+  }
+
+  private url(path: string): string {
+    if (path && !path.startsWith("/")) path = `/${path}`;
+    return `${BASE_URL}${this.prefix}${path}`;
+  }
+
+  private async _fetch<T>(
+    path: string,
+    options: RequestInit,
+    isRetry = false,
+  ): Promise<T> {
+    const isFormData = options.body instanceof FormData;
+    const headers = this.buildHeaders(
+      options.headers as Record<string, string> | undefined,
+      isFormData,
+    );
+
+    let response: Response;
+    try {
+      response = await fetch(this.url(path), { ...options, headers });
+    } catch (err) {
+      throw new ApiError(
+        0,
+        err instanceof Error ? err.message : "Erreur réseau.",
+        "NETWORK_ERROR",
+      );
+    }
+
+    // 401 → try refresh once, then replay
+    if (response.status === 401 && !isRetry) {
+      try {
+        await doRefresh();
+        return this._fetch<T>(path, options, true);
+      } catch {
+        expireSession();
+        throw new ApiError(
+          401,
+          "Session expirée. Veuillez vous reconnecter.",
+          "UNAUTHORIZED",
+        );
+      }
+    }
+
+    // 401 on retry → give up
+    if (response.status === 401) {
+      expireSession();
+      throw new ApiError(401, "Session expirée. Veuillez vous reconnecter.", "UNAUTHORIZED");
+    }
+
+    return parseResponse<T>(response);
+  }
+
+  // ── Public HTTP methods ───────────────────────────────────────────────────
+
+  get<T = unknown>(path = "", params?: Record<string, string>): Promise<T> {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return this._fetch<T>(`${path}${qs}`, { method: "GET" });
+  }
+
+  post<T = unknown>(path = "", body?: unknown): Promise<T> {
+    const isFormData = body instanceof FormData;
+    return this._fetch<T>(path, {
+      method: "POST",
+      body: isFormData
+        ? (body as FormData)
+        : body !== undefined
+          ? JSON.stringify(body)
+          : undefined,
+    });
+  }
+
+  put<T = unknown>(path = "", body?: unknown): Promise<T> {
+    return this._fetch<T>(path, {
+      method: "PUT",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  patch<T = unknown>(path = "", body?: unknown): Promise<T> {
+    return this._fetch<T>(path, {
+      method: "PATCH",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  delete<T = unknown>(path = ""): Promise<T> {
+    return this._fetch<T>(path, { method: "DELETE" });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pre-configured domain instances
+// ---------------------------------------------------------------------------
+
+export const authApi      = new ApiClient("/api/v1/auth");
+export const projectsApi  = new ApiClient("/api/v1/projects");
+export const leadsApi     = new ApiClient("/api/v1/leads");
+export const contentApi   = new ApiClient("/api/v1/content");
+export const campaignsApi = new ApiClient("/api/v1/campaigns");
+export const analyticsApi = new ApiClient("/api/v1/analytics");
+export const scoringApi   = new ApiClient("/api/v1/scoring");
+
+// ---------------------------------------------------------------------------
+// Backward-compat standalone helpers (used by 28+ existing files)
+// Keep these — do NOT remove.
+// ---------------------------------------------------------------------------
+
+/**
+ * Low-level fetch wrapper (no refresh-retry).
+ * 401 → dispatches "auth:expired" and throws immediately.
+ * New code should prefer the domain ApiClient instances above.
+ */
+export async function apiFetch<T = unknown>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const token = readToken();
+  const isFormData = options.body instanceof FormData;
+
+  const headers: Record<string, string> = {
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string>),
+  };
+
+  const url = path.startsWith("http") ? path : `${BASE_URL}${path}`;
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    expireSession();
+    throw new ApiError(401, "Non autorisé.", "UNAUTHORIZED");
+  }
+
+  return parseResponse<T>(response);
+}
 
 export function apiGet<T = unknown>(path: string): Promise<T> {
   return apiFetch<T>(path, { method: "GET" });
@@ -149,20 +348,4 @@ export function apiPatch<T = unknown>(path: string, body?: unknown): Promise<T> 
 
 export function apiDelete<T = unknown>(path: string): Promise<T> {
   return apiFetch<T>(path, { method: "DELETE" });
-}
-
-// ---------------------------------------------------------------------------
-// Token helpers (kept for backwards-compatibility)
-// ---------------------------------------------------------------------------
-
-export function setToken(token: string): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("bs_token", token);
-  }
-}
-
-export function clearToken(): void {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("bs_token");
-  }
 }
