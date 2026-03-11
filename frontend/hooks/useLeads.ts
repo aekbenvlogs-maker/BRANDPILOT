@@ -12,13 +12,21 @@ import { apiFetch } from "@/utils/api";
 
 export interface Lead {
   id: string;
+  project_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
   company: string | null;
   sector: string | null;
+  source: string | null;
+  /** null while initial scoring is in progress (newly created lead) */
   score: number | null;
   score_tier: "hot" | "warm" | "cold" | null;
+  score_updated_at: string | null;
   opt_in: boolean;
-  source: string | null;
+  consent_date: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface LeadsFilters {
