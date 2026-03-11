@@ -60,7 +60,9 @@ export function useFormatContent() {
       try {
         const data = await apiPost<FormattedContent>("/api/v1/content/format", req);
         setResult(data);
-        await globalMutate("/api/v1/content/history");
+        // Invalide le cache SWR du contenu (clé dynamique par campaign_id —
+        // on invalide le pattern pour couvrir toutes les campagnes)
+        await globalMutate((key) => typeof key === "string" && key.startsWith("/api/v1/content/"), undefined, { revalidate: true });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erreur lors de la génération");
       } finally {

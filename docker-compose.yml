@@ -136,6 +136,12 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A microservices.bs_ai_image.worker.celery_app inspect ping -d worker_ai_image@$$HOSTNAME --timeout 10"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   # ── Celery Worker ─ bs_ai_video ──────────────────────────────────
@@ -154,6 +160,12 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A microservices.bs_ai_video.worker.celery_app inspect ping -d worker_ai_video@$$HOSTNAME --timeout 10"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   # ── Microservice ─ bs_ai_text (port 8001) ────────────────────────
@@ -292,6 +304,13 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    healthcheck:
+      # Beat writes a schedule file — presence confirms the process is alive
+      test: ["CMD-SHELL", "test -f /tmp/celerybeat-schedule"]
+      interval: 60s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   # ── Celery Flower — monitors ALL workers via shared broker ─────────────
@@ -311,6 +330,12 @@ services:
       - "5555:5555"
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:5555/', timeout=5)"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   # ── Celery Worker ─ workflow (RGPD purge + L2C pipeline) ──────────────
