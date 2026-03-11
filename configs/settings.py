@@ -161,6 +161,20 @@ class Settings(BaseSettings):
     cors_origins: str = Field(default="http://localhost:3000")
 
     # ---------------------------------------------------------------------------
+    # O-04: Sentry — error tracking & performance monitoring
+    # ---------------------------------------------------------------------------
+    sentry_dsn: str = Field(
+        default="",
+        description="Sentry DSN. Leave empty to disable Sentry (default in dev).",
+    )
+    sentry_traces_sample_rate: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Sentry tracing sample rate (0.0 = off, 1.0 = 100%). Default 10%.",
+    )
+
+    # ---------------------------------------------------------------------------
     # RGPD thresholds
     # ---------------------------------------------------------------------------
     unsubscribe_process_delay_hours: int = Field(default=24, ge=1)

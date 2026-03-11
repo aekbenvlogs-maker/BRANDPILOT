@@ -68,6 +68,37 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("[BRANDSCALE] Starting up — env={}", settings.app_env)
 
+    # O-04: Sentry — initialise error tracking when DSN is configured
+    if settings.sentry_dsn:
+        try:
+            import sentry_sdk
+            from sentry_sdk.integrations.fastapi import FastApiIntegration
+            from sentry_sdk.integrations.loguru import LoguruIntegration
+            from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+            sentry_sdk.init(
+                dsn=settings.sentry_dsn,
+                integrations=[
+                    FastApiIntegration(),
+                    SqlalchemyIntegration(),
+                    LoguruIntegration(),
+                ],
+                traces_sample_rate=settings.sentry_traces_sample_rate,
+                environment=settings.app_env,
+                release=settings.app_version,
+                send_default_pii=False,
+            )
+            logger.info(
+                "[BRANDSCALE] Sentry initialised | env={} traces={}",
+                settings.app_env,
+                settings.sentry_traces_sample_rate,
+            )
+        except ImportError:
+            logger.warning(
+                "[BRANDSCALE] SENTRY_DSN set but sentry-sdk not installed. "
+                "Run: pip install 'sentry-sdk[fastapi,celery,loguru]'"
+            )
+
     init_db(
         database_url=settings.active_database_url,
         echo=settings.app_debug,

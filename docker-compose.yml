@@ -362,7 +362,14 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      # I-07: NEXT_BACKEND_URL is a server-side var used by next.config.mjs rewrites.
+      # The browser always talks to the Next.js server (localhost:3000);
+      # Next.js proxies /api/* to the internal backend service.
+      NEXT_BACKEND_URL: http://backend:8000
+      # NEXT_PUBLIC_API_BASE_URL is intentionally empty — use relative /api paths.
+      NEXT_PUBLIC_API_BASE_URL: ""
+      NEXT_PUBLIC_APP_NAME: BRANDSCALE
+      NEXT_PUBLIC_APP_VERSION: "1.0.0"
     ports:
       - "3000:3000"
     depends_on:

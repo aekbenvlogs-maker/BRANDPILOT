@@ -19,8 +19,32 @@ from configs.settings import get_settings
 settings = get_settings()
 
 # ---------------------------------------------------------------------------
-# Celery application
+# O-04: Sentry — error tracking for Celery tasks
 # ---------------------------------------------------------------------------
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.loguru import LoguruIntegration
+
+    if settings.sentry_dsn:
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            integrations=[
+                CeleryIntegration(monitor_beat_tasks=True),
+                LoguruIntegration(),
+            ],
+            traces_sample_rate=settings.sentry_traces_sample_rate,
+            environment=settings.app_env,
+            release=settings.app_version,
+            send_default_pii=False,
+        )
+        logger.info(
+            "[campaign_agent] Sentry initialised | env={} traces={}",
+            settings.app_env,
+            settings.sentry_traces_sample_rate,
+        )
+except ImportError:
+    logger.debug("[campaign_agent] sentry_sdk not installed — error tracking disabled.")
 
 celery_app = Celery(
     "campaign_agent",
@@ -37,6 +61,17 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    # O-01: global task timeout guards — individual chord tasks can override
+    # soft_time_limit raises SoftTimeLimitExceeded (catchable for cleanup)
+    # time_limit is the hard kill (SIGKILL after soft)
+    task_soft_time_limit=240,   # 4 min — raise SoftTimeLimitExceeded
+    task_time_limit=300,        # 5 min — hard kill
+    # Chord unlock: retry the chord-unlock task at most 60 times (every 5 s = 5 min)
+    # Prevents zombie chord lock keys when a header task is stuck or dead
+    chord_unlock_max_retries=60,
+    broker_transport_options={
+        "visibility_timeout": 3600,  # 1 h — longer than any single task
+    },
 )
 
 # ---------------------------------------------------------------------------
@@ -309,6 +344,8 @@ async def _publish_via_platform(post_dict: dict[str, Any]) -> str:
     default_retry_delay=60,
     acks_late=True,
     reject_on_worker_lost=True,
+    soft_time_limit=180,  # 3 min — brand scrape + GPT-4 Vision
+    time_limit=240,       # 4 min hard kill
 )
 def analyze_brand(self: Any, project_id: str) -> dict[str, Any]:
     """Analyse the brand identity for a given project.
@@ -426,6 +463,8 @@ async def _analyze_brand_async(project_id: str) -> dict[str, Any]:
     default_retry_delay=60,
     acks_late=True,
     reject_on_worker_lost=True,
+    soft_time_limit=60,   # 1 min — audience data fetch
+    time_limit=90,        # 1.5 min hard kill
 )
 def analyze_audience(
     self: Any,
@@ -507,6 +546,8 @@ def _analyze_audience_data(
     default_retry_delay=60,
     acks_late=True,
     reject_on_worker_lost=True,
+    soft_time_limit=60,   # 1 min — influencer lookup
+    time_limit=90,        # 1.5 min hard kill
 )
 def suggest_influencers(
     self: Any,
@@ -588,6 +629,8 @@ def _find_influencers(
     default_retry_delay=60,
     acks_late=True,
     reject_on_worker_lost=True,
+    soft_time_limit=120,  # 2 min — campaign plan assembly + DB writes
+    time_limit=180,       # 3 min hard kill
 )
 def build_campaign_plan(
     self: Any,
